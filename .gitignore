@@ -1,0 +1,111 @@
+# Dependencias
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Variables de entorno - CRÍTICO
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.*.local
+
+# Archivos de bloqueo (opcional, depende de tu equipo)
+package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Sistema operativo
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Editores de código e IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.sublime-project
+.sublime-workspace
+*.code-workspace
+
+# Cobertura de pruebas
+coverage/
+*.lcov
+.nyc_output
+.jest/
+
+# Archivos de build/dist
+dist/
+build/
+out/
+
+# Archivos temporales
+*.tmp
+*.temp
+.cache/
+.temp/
+
+# Base de datos local (si usas SQLite para desarrollo)
+*.sqlite
+*.sqlite3
+*.db
+
+# Certificados y claves (si usas SSL local)
+*.pem
+*.key
+*.cert
+*.crt
+
+# Archivos de respaldo
+*.backup
+*.bak
+*.old
+*.orig
+
+# Archivos de configuración sensibles
+config/local.js
+config/secrets.js
+
+# PM2 (si lo usas para deployment)
+.pm2/
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Archivos de debug
+debug/
+.vscode-test/
+
+# MacOS
+.AppleDouble
+.LSOverride
+Icon?
+
+# Windows
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
