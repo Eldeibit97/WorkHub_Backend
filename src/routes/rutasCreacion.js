@@ -5,4 +5,10 @@ const router = express.Router();
 
 router.get('/users', queries.getUsers);
 
+router.get('/reserva', queries.getReservaByID);
+
+router.get('/reservas', queries.getReservas);
+
+router.put('/reserva/update', queries.updateReserva);
+
 module.exports = router;
