@@ -1,13 +1,15 @@
 const express = require('express');
-const queries = require('../controllers/queriesReserva.js');
+
+const queriesReserva = require('../controllers/queriesReserva.js');
+const queries = require('../controllers/queries.js');
 
 const router = express.Router();
 
-router.get('/reservando', queries.createReservaOficina);
-
-router.get('/reserva', queries.getReservaByID);
+router.post('/reservando', queriesReserva.createReservaOficina);
 
 router.get('/reservas', queries.getReservas);
+
+router.get('/reserva', queries.getReservaByID);
 
 router.put('/reserva/update', queries.updateReserva);
 
