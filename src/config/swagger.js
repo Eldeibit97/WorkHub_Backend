@@ -17,6 +17,7 @@ const options = {
     ],
     tags: [
       { name: 'Auth', description: 'Login y JWT' },
+      { name: 'Admin', description: 'Asignación de contraseñas (solo administradores)' },
       { name: 'Reservas', description: 'Reservas de oficina' },
       { name: 'Health', description: 'Estado del servicio' },
     ],

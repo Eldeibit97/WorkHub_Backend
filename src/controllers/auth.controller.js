@@ -2,10 +2,19 @@ const authService = require('../services/auth.service');
 
 const login = async (req, res) => {
   try {
-    const { correo_institucional, password } = req.body;
+    const body = req.body || {};
+    const correoRaw =
+      body.correo_institucional ?? body.email ?? body.correo ?? body.mail;
+    const passwordRaw = body.password;
+
+    const correo_institucional =
+      typeof correoRaw === 'string' ? correoRaw.trim() : '';
+    const password = typeof passwordRaw === 'string' ? passwordRaw : '';
+
     if (!correo_institucional || !password) {
       return res.status(400).json({
-        message: 'correo_institucional y password son requeridos',
+        message:
+          'Se requieren correo (correo_institucional, email o mail) y password',
       });
     }
 
