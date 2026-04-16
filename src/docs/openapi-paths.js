@@ -94,19 +94,17 @@
  *       200:
  *         description: Lista de reservas
  *
- * /api/reserva:
+ * /api/reserva/{id_reserva}:
  *   get:
  *     tags: [Reservas]
  *     summary: Obtener reserva por ID
- *     description: El controlador actual lee id_reserva desde el body (no es lo habitual en GET).
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               id_reserva:
- *                 type: integer
+ *     parameters:
+ *       - in: path
+ *         name: id_reserva
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID de la reserva
  *     responses:
  *       200:
  *         description: Reserva encontrada

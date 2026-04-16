@@ -12,16 +12,16 @@ exports.getReservas = async (req,res) => {
 };
 
 exports.getReservaByID = async (req,res) => {
-    const { id_reserva } = req.body;
+    const { id_reserva } = req.params;
 
-    if (!id_reserva === undefined) {
-        res.status(400).json({ error: 'ID de reserva no proporcionado' });
+    if (id_reserva === undefined) {
+        return res.status(400).json({ error: 'ID de reserva no proporcionado' });
     }
 
     const reserva = await modeloReserva.encontrarPorId(id_reserva);
 
     if(!reserva || reserva.length === 0){ 
-        res.status(404).json({ 
+        return res.status(404).json({ 
             success: false,
             message: 'Reserva con este ID no encontrada'
         });
