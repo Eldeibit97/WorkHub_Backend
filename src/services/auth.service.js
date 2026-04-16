@@ -35,13 +35,16 @@ async function login(correo_institucional, password) {
   }
 
   if (user.password_hash == null || user.password_hash === '') {
-    const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-    await ModeloUsuario.actualizarPasswordHash(user.id_usuario, hash);
-  } else {
-    const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) {
-      return { ok: false, status: 401, message: 'Credenciales inválidas' };
-    }
+    return {
+      ok: false,
+      status: 403,
+      message: 'Cuenta sin contraseña asignada. Contacte al administrador.',
+    };
+  }
+
+  const match = await bcrypt.compare(password, user.password_hash);
+  if (!match) {
+    return { ok: false, status: 401, message: 'Credenciales inválidas' };
   }
 
   const token = signToken(user);

@@ -12,7 +12,7 @@
  *   post:
  *     tags: [Auth]
  *     summary: Iniciar sesión
- *     description: Si password_hash es null, la primera petición guarda el hash de la contraseña enviada.
+ *     description: Requiere que un administrador haya asignado contraseña (POST /api/admin/assign-password) o uso del script scripts/set-user-password.js.
  *     requestBody:
  *       required: true
  *       content:
@@ -52,6 +52,46 @@
  *         description: Faltan correo o contraseña
  *       401:
  *         description: Credenciales inválidas
+ *       403:
+ *         description: Cuenta sin contraseña asignada
+ *
+ * /api/admin/assign-password:
+ *   post:
+ *     tags: [Admin]
+ *     summary: Asignar contraseña a un usuario existente
+ *     description: El correo del JWT debe estar en ADMIN_EMAILS del servidor.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [correo_institucional, password, confirmPassword]
+ *             properties:
+ *               correo_institucional:
+ *                 type: string
+ *                 format: email
+ *               password:
+ *                 type: string
+ *                 format: password
+ *               confirmPassword:
+ *                 type: string
+ *                 format: password
+ *     responses:
+ *       200:
+ *         description: Contraseña guardada (hash en BD)
+ *       400:
+ *         description: Validación (coincidencia, longitud mínima, campos)
+ *       401:
+ *         description: Sin token o token inválido
+ *       403:
+ *         description: No es administrador
+ *       404:
+ *         description: Correo no existe en Usuario
+ *       503:
+ *         description: ADMIN_EMAILS no configurado
  *
  * /api/reservando:
  *   post:
