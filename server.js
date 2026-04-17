@@ -4,6 +4,7 @@ const swaggerUi = require('swagger-ui-express');
 const rutas = require('./src/routes/rutasCreacion');
 const authRoutes = require('./src/routes/auth.routes');
 const adminRoutes = require('./src/routes/admin.routes');
+const usersRoutes = require('./src/routes/users.routes');
 const { swaggerSpec } = require('./src/config/swagger');
 const dotenv = require('dotenv');
 
@@ -37,6 +38,7 @@ app.get('/api/docs.json', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/users', usersRoutes);
 app.use('/api', rutas);
 
 if (!process.env.ADMIN_EMAILS || !String(process.env.ADMIN_EMAILS).trim()) {
