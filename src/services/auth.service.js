@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const ModeloUsuario = require('../models/modeloUsuario');
 
 const BCRYPT_ROUNDS = 12;
+const MIN_PASSWORD_LENGTH = 8;
 
 function signToken(user) {
   const secret = process.env.JWT_SECRET;
@@ -13,7 +14,11 @@ function signToken(user) {
   }
   const expiresIn = process.env.JWT_EXPIRES_IN || '8h';
   return jwt.sign(
-    { sub: user.id_usuario, correo: user.correo_institucional },
+    {
+      sub: user.id_usuario,
+      correo: user.correo_institucional,
+      rol: user.rol,          // NUEVO: rol incluido en el token
+    },
     secret,
     { expiresIn }
   );
@@ -25,6 +30,7 @@ function publicUser(user) {
     nombre: user.nombre,
     apellido: user.apellido,
     correo_institucional: user.correo_institucional,
+    rol: user.rol,            // NUEVO: rol incluido en la respuesta
   };
 }
 
@@ -51,4 +57,4 @@ async function login(correo_institucional, password) {
   return { ok: true, token, user: publicUser(user) };
 }
 
-module.exports = { login };
+module.exports = { login, MIN_PASSWORD_LENGTH };

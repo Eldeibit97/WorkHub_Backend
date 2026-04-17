@@ -1,39 +1,36 @@
 const jwt = require('jsonwebtoken');
 
-function parseAdminEmails() {
-  const raw = process.env.ADMIN_EMAILS || '';
-  return raw
-    .split(',')
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-function requireAdmin(req, res, next) {
+function authenticate(req, res, next) {
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'No autorizado' });
+    return res.status(401).json({ message: 'Token requerido' });
   }
 
   const token = auth.slice(7).trim();
-  const admins = parseAdminEmails();
-  if (admins.length === 0) {
-    return res.status(503).json({
-      message:
-        'Administración no configurada (defina ADMIN_EMAILS en el servidor)',
-    });
-  }
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
-    const correo = String(payload.correo || '').trim().toLowerCase();
-    if (!correo || !admins.includes(correo)) {
-      return res.status(403).json({ message: 'Acceso denegado' });
-    }
-    req.admin = { sub: payload.sub, correo: payload.correo };
+    req.user = {
+      sub: payload.sub,
+      correo: payload.correo,
+      rol: payload.rol,
+    };
     next();
   } catch {
     return res.status(401).json({ message: 'Token inválido o expirado' });
   }
 }
 
-module.exports = { requireAdmin, parseAdminEmails };
+function authorize(...roles) {
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.rol)) {
+      return res.status(403).json({ message: 'Acceso denegado' });
+    }
+    next();
+  };
+}
+
+// Compatibilidad con el código actual
+const requireAdmin = [authenticate, authorize('administrador')];
+
+module.exports = { authenticate, authorize, requireAdmin };
