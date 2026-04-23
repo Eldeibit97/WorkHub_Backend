@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
-const rutas = require('./src/routes/rutasCreacion');
+const rutas = require('./src/routes/create.reservation.routes');
 const authRoutes = require('./src/routes/auth.routes');
 const adminRoutes = require('./src/routes/admin.routes');
 const { swaggerSpec } = require('./src/config/swagger');
