@@ -1,7 +1,7 @@
 const { sql } = require('../config/db.js');
 
 class ModeloUsuario {
-  static async encontralPorMail(mail) {
+  static async encontrarPorMail(mail) {
     if (!mail) {
       return undefined;
     }
