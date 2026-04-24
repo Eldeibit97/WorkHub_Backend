@@ -4,6 +4,7 @@ const swaggerUi = require('swagger-ui-express');
 const reservationRoutes = require('./src/routes/reservation.routes');
 const authRoutes = require('./src/routes/auth.routes');
 const adminRoutes = require('./src/routes/admin.routes');
+const usersRoutes = require('./src/routes/users.routes');
 const preferencesRoutes = require('./src/routes/preferences.routes');
 const { swaggerSpec } = require('./src/config/swagger');
 const dotenv = require('dotenv');
@@ -20,7 +21,7 @@ if (!process.env.JWT_SECRET || String(process.env.JWT_SECRET).trim() === '') {
 // Opcional: JWT_EXPIRES_IN, FRONTEND_ORIGIN (CORS), ADMIN_EMAILS (correos admin, separados por coma)
 
 const app = express();
-const port = 5500;
+const port = 3000;
 
 // credentials: 'include' en el frontend exige origen concreto (no *) y credentials: true aquí
 app.use(
@@ -38,8 +39,9 @@ app.get('/api/docs.json', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/preferences', preferencesRoutes);
 app.use('/api', reservationRoutes);
-app.use('/api', preferencesRoutes);
 
 if (!process.env.ADMIN_EMAILS || !String(process.env.ADMIN_EMAILS).trim()) {
   console.warn(

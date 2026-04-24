@@ -122,4 +122,69 @@ const createReserva = async (req, res) => {
   }
 };
 
-module.exports = { getReservations, getUsers, getReservas, getReservaByID, updateReserva, createReserva, checkAvailability };
+//Check-in reserva logica
+const checkInReserva = async (req, res) => {
+  try {
+    const { id_reserva } = req.body;
+
+    if (!id_reserva) {
+      return res.status(400).json({ message: 'id_reserva es requerido' });
+    }
+
+    // 1. Buscar reserva
+    const reserva = await modeloReserva.encontrarPorId(id_reserva);
+
+    if (!reserva || reserva.length === 0) {
+      return res.status(404).json({ message: 'Reserva no encontrada' });
+    }
+
+    const r = reserva[0];
+
+    // 2. Validar estado
+    if (r.estado_reserva !== 'ACTIVO') {
+      return res.status(400).json({ message: 'La reserva no está activa' });
+    }
+
+    if (r.estado_reserva === 'CHECKED_IN') {
+      return res.status(400).json({ message: 'Ya se hizo check-in' });
+    }
+
+    // 3. Validar ventana de tiempo (ej: 15 min antes y después)
+    const ahora = new Date();
+
+    const fechaReserva = new Date(r.fecha_reserva);
+    const [hora, minutos] = r.hora_inicio.split(':');
+
+    fechaReserva.setHours(hora, minutos, 0);
+
+    const margen = 15 * 60 * 1000; // 15 minutos
+
+    const inicioVentana = new Date(fechaReserva.getTime() - margen);
+    const finVentana = new Date(fechaReserva.getTime() + margen);
+
+    if (ahora < inicioVentana || ahora > finVentana) {
+      return res.status(400).json({
+        message: 'Fuera de la ventana permitida para check-in'
+      });
+    }
+
+    // 4. Update
+    await sql`
+      UPDATE "Reserva"
+      SET estado_reserva = 'CHECKED_IN',
+          check_in = NOW()
+      WHERE id_reserva = ${id_reserva}
+    `;
+
+    res.json({
+      success: true,
+      message: 'Check-in realizado correctamente'
+    });
+
+  } catch (error) {
+    console.error('Error en check-in:', error);
+    res.status(500).json({ message: 'Error en check-in' });
+  }
+};
+
+module.exports = { getReservations, getUsers, getReservas, getReservaByID, updateReserva, createReservaOficina, checkAvailability, checkInReserva, createReserva };

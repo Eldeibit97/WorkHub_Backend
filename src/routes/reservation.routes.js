@@ -16,4 +16,6 @@ router.get('/reservas/:id_reserva', queries.getReservaByID);
 
 router.get('/usuarios', queries.getUsers);
 
+router.put('/reservas/check-in', queries.checkInReserva);
+
 module.exports = router;
