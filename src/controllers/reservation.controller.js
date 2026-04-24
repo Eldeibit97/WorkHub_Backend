@@ -1,4 +1,12 @@
-const { fetchReservations } = require('../services/reservation.service');
+const { sql } = require('../config/db.js');
+const modeloUsuario = require('../models/modeloUsuario.js');
+const modeloReserva = require('../models/modeloReserva.js');
+const { fetchReservations, fetchAvailability } = require('../services/reservation.service');
+
+const getUsers = async (req,res) => {
+    const users = await sql`SELECT * FROM "Usuario"`;
+    res.json(users)
+};
 
 const getReservations = async (req, res) => {
   try {
@@ -13,9 +21,115 @@ const getReservations = async (req, res) => {
     res.json(reservations);
 
   } catch (error) {
-    console.error(error);
+    console.error("Error fetching reservations:", error);
     res.status(500).json({ message: 'Error fetching reservations' });
   }
 };
 
-module.exports = { getReservations };
+const getReservas = async (req,res) => {
+    const reservas = await sql`SELECT * FROM "Reserva"`;
+    res.json(reservas)
+};
+
+const getReservaByID = async (req,res) => {
+    const { id_reserva } = req.params;
+
+    if (id_reserva === undefined) {
+        return res.status(400).json({ error: 'ID de reserva no proporcionado' });
+    }
+
+    const reserva = await modeloReserva.encontrarPorId(id_reserva);
+
+    if(!reserva || reserva.length === 0){ 
+        return res.status(404).json({ 
+            success: false,
+            message: 'Reserva con este ID no encontrada'
+        });
+    } else {
+        res.json(reserva);
+    }
+};
+
+const updateReserva = async (req, res) => {
+    const {id_reserva, id_usuario, id_espacio, fecha_reserva, hora_inicio, hora_fin, estado_reserva, fecha_creacion, tipo_reserva} = req.body;
+    
+    if (id_reserva === undefined || !id_usuario || !id_espacio || !fecha_reserva || !hora_inicio || !hora_fin || !estado_reserva || !fecha_creacion || !tipo_reserva) {
+        res.status(400).json({ error: 'Datos incompletos para actualizar la reserva' });
+        return;
+    }
+
+    const reservas = await modeloReserva.encontrarPorId(id_reserva);
+
+
+    if (!reservas || reservas.length === 0) {
+        return res.status(404).json({ 
+        success: false,
+        error: "Reserva con ese ID no fue encontrado" 
+      });
+    }
+
+    try {
+        const query = await sql`UPDATE "Reserva" 
+        SET id_espacio = ${id_espacio}, fecha_reserva = ${fecha_reserva}, hora_inicio = ${hora_inicio}, hora_fin = ${hora_fin}, estado_reserva = ${estado_reserva}, fecha_creacion = ${fecha_creacion}, tipo_reserva = ${tipo_reserva}
+        WHERE id_reserva = ${id_reserva} RETURNING *`;
+        res.json({ 
+            success: true,
+            message: 'Reserva actualizada exitosamente'
+        });
+    }catch (error) {
+        console.error('Error al actualizar la reserva:', error);
+        res.status(500).json({ 
+            success: false,
+            message: 'Error al actualizar la reserva'
+        });
+    }
+};
+
+const checkAvailability = async (req, res) => {
+    try {
+        const { date } = req.query;
+
+        if (!date) {
+            return res.status(400).json({ message: 'date parameter is required (YYYY-MM-DD)' });
+        }
+
+        const availability = await fetchAvailability(date);
+
+        res.json(availability);
+
+    }
+    catch (error){
+        console.error("Error checking availability:", error);
+        res.status(500).json({ message: 'Error checking availability' });
+    }
+};
+
+const createReservaOficina = async (req,res) => {
+    const { mail, fecha, espacio, hora_llegada, hora_salida, fecha_creacion} = req.body;
+    const usuario = await modeloUsuario.encontralPorMail(mail);
+    if(!mail || !fecha || !espacio || !hora_llegada || !hora_salida){
+      res.status(404).json({error: "Todos los campos deben ser llenados"})
+    }
+
+    if (!usuario || usuario.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: "Usuario con ese correo no fue encontrado" 
+      });
+    }
+
+    try{
+      const query = await sql`INSERT INTO "Reserva" (id_usuario, id_espacio, fecha_reserva, hora_inicio, hora_fin, estado_reserva, fecha_creacion, tipo_reserva)
+                              VALUES (${usuario["id_usuario"]}, ${espacio}, ${fecha}, ${hora_llegada}, ${hora_salida}, 'ACTIVO', ${fecha_creacion}, 'INDIVIDUAL')`;
+      res.status(201).json({mensaje: "Reserva creada exitosamente"})
+    }catch(error){
+      console.error('Error creando la reserva', error)
+      res.status(500).json({error: "Error al crear reserva"});
+    }
+};
+
+/*exports.createReservaEstacionamiento() = async (req, res) => {
+  Por hacer
+};*/
+
+module.exports = { getReservations, getUsers, getReservas, getReservaByID, updateReserva, createReservaOficina, checkAvailability };

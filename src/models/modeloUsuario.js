@@ -1,14 +1,14 @@
 const { sql } = require('../config/db.js');
 
 class ModeloUsuario {
-
-  // Devuelve el usuario completo (incluyendo password_hash) o undefined si no se encuentra
-  static async encontralPorMail(mail) {
-    if (!mail) return undefined;
+  static async encontrarPorMail(mail) {
+    if (!mail) {
+      return undefined;
+    }
     const rows = await sql`
-      SELECT * 
-        FROM "Usuario" 
-        WHERE correo_institucional = ${mail}
+    SELECT * 
+      FROM "Usuario" 
+      WHERE correo_institucional = ${mail}
     `;
     return rows[0];
   }
