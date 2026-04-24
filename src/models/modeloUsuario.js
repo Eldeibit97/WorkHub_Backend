@@ -2,11 +2,20 @@ const { sql } = require('../config/db.js');
 
 class ModeloUsuario {
   static async encontrarPorMail(mail) {
-    if (!mail) {
-      return undefined;
+    try {
+      if (!mail) {
+        throw new Error('No se proporciono un correo')
+        return {id_usuario: -1};
+      }
+      const rows = await sql`SELECT id_usuario FROM "Usuario" WHERE correo_institucional = ${mail}`;
+      if(!rows.length){
+        throw new Error('El correo no esta registrado o no existe');
+      }
+      return rows[0];
+    } catch (error) {
+      console.error(error.message ? error.message : 'Hubo un error al buscar el correo');
+      return {id_usuario: -1};
     }
-    const rows = await sql`SELECT * FROM "Usuario" WHERE correo_institucional = ${mail}`;
-    return rows[0];
   }
 
   static async actualizarPasswordHash(id_usuario, hash) {

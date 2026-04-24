@@ -103,20 +103,20 @@
  *         application/json:
  *           schema:
  *             type: object
- *             required: [mail, fecha, espacio, hora_llegada, hora_salida]
+ *             required: [mail, fechaReserva, idEspacio, horaInicio, horaSalida]
  *             properties:
  *               mail:
  *                 type: string
  *                 format: email
- *               fecha:
+ *               fechaReserva:
  *                 type: string
- *               espacio:
+ *               idEspacio:
  *                 type: integer
- *               hora_llegada:
+ *               horaInicio:
  *                 type: string
- *               hora_salida:
+ *               horaSalida:
  *                 type: string
- *               fecha_creacion:
+ *               fechaCreacion:
  *                 type: string
  *     responses:
  *       201:
