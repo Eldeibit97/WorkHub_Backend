@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-const rutasCreacion = require('./src/routes/rutasCreacion');
+const rutasCreacion = require('./src/routes/create.reservation.routes');
 const reservationRoutes = require('./src/routes/reservation.routes');
 
 const app = express();

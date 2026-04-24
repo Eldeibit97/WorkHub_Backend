@@ -1,7 +1,21 @@
 const express = require('express');
 const router = express.Router();
-const { getReservations } = require('../controllers/reservation.controller');
+const queries = require('../controllers/reservation.controller');
 
-router.get('/', getReservations);
+router.post('/reservando', queries.createReserva);
+
+router.get('/reservas', queries.getReservas);
+
+router.put('/reservas/update', queries.updateReserva);
+
+router.get('/reservas/consulta', queries.getReservations);
+
+router.get('/reservas/disponibilidad', queries.checkAvailability);
+
+router.get('/reservas/:id_reserva', queries.getReservaByID);
+
+router.get('/usuarios', queries.getUsers);
+
+router.put('/reservas/check-in', queries.checkInReserva);
 
 module.exports = router;
