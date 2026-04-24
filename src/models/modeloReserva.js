@@ -30,7 +30,7 @@ class ModeloReserva {
     static async crearReserva(datosReserva) {
         try {
             const inserted = await sql`INSERT INTO "Reserva" (id_usuario, id_espacio, fecha_reserva, hora_inicio, hora_fin, estado_reserva, fecha_creacion, tipo_reserva)
-                  VALUES (${datosReserva.idUsuario}, ${datosReserva.idEspacio}, ${datosReserva.fechaReserva}, ${datosReserva.horaInicio}, ${datosReserva.horaSalida}, 'PENDIENTE', ${datosReserva.fechaCreacion}, 'INDIVIDUAL')`;
+                  VALUES (${datosReserva.idUsuario}, ${datosReserva.idEspacio}, ${datosReserva.fechaReserva}, ${datosReserva.horaInicio}, ${datosReserva.horaSalida}, 'PENDIENTE', ${datosReserva.fechaCreacion}, ${datosReserva.tipoReserva})`;
             return true;
         } catch (error) {
             console.log('No se realizo la reserva', error);
