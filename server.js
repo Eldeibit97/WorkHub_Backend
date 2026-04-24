@@ -1,9 +1,10 @@
 const express = require('express');
 const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
-const rutas = require('./src/routes/create.reservation.routes');
+const reservationRoutes = require('./src/routes/reservation.routes');
 const authRoutes = require('./src/routes/auth.routes');
 const adminRoutes = require('./src/routes/admin.routes');
+const preferencesRoutes = require('./src/routes/preferences.routes');
 const { swaggerSpec } = require('./src/config/swagger');
 const dotenv = require('dotenv');
 
@@ -37,7 +38,8 @@ app.get('/api/docs.json', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api', rutas);
+app.use('/api', reservationRoutes);
+app.use('/api', preferencesRoutes);
 
 if (!process.env.ADMIN_EMAILS || !String(process.env.ADMIN_EMAILS).trim()) {
   console.warn(

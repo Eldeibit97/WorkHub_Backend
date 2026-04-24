@@ -134,7 +134,7 @@
  *       200:
  *         description: Lista de reservas
  *
- * /api/reserva/{id_reserva}:
+ * /api/reservas/{id_reserva}:
  *   get:
  *     tags: [Reservas]
  *     summary: Obtener reserva por ID
@@ -153,7 +153,7 @@
  *       404:
  *         description: Reserva no encontrada
  *
- * /api/reserva/update:
+ * /api/reservas/update:
  *   put:
  *     tags: [Reservas]
  *     summary: Actualizar reserva
@@ -192,6 +192,210 @@
  *         description: Reserva no encontrada
  *       500:
  *         description: Error del servidor
+ *
+ * /api/reservas/consulta:
+ *   get:
+ *     tags: [Reservas]
+ *     summary: Consultar reservas de un usuario
+ *     description: Devuelve todas las reservas del usuario indicado. Opcionalmente filtra por estado.
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario cuyas reservas se quieren consultar
+ *       - in: query
+ *         name: status
+ *         required: false
+ *         schema:
+ *           type: string
+ *           example: activa
+ *         description: Filtrar por estado de la reserva (ej. activa, cancelada, completada)
+ *     responses:
+ *       200:
+ *         description: Lista de reservas del usuario
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id_reserva:
+ *                     type: integer
+ *                   fecha_reserva:
+ *                     type: string
+ *                   hora_inicio:
+ *                     type: string
+ *                   hora_fin:
+ *                     type: string
+ *                   estado_reserva:
+ *                     type: string
+ *                   tipo_reserva:
+ *                     type: string
+ *                   nombre_espacio:
+ *                     type: string
+ *                   codigo_espacio:
+ *                     type: string
+ *                   nombre_zona:
+ *                     type: string
+ *                   edificio:
+ *                     type: string
+ *                   nombre_tipo:
+ *                     type: string
+ *       400:
+ *         description: userId es requerido
+ *       500:
+ *         description: Error al consultar reservas
+ *
+ * /api/reservas/disponibilidad:
+ *   get:
+ *     tags: [Reservas]
+ *     summary: Consultar disponibilidad de espacios
+ *     description: Devuelve la disponibilidad de espacios para una fecha dada.
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: '2026-04-23'
+ *         description: Fecha a consultar (YYYY-MM-DD)
+ *     responses:
+ *       200:
+ *         description: Datos de disponibilidad
+ *       400:
+ *         description: Parámetro date requerido
+ *       500:
+ *         description: Error al consultar disponibilidad
+ *
+ * /api/usuarios:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Listar todos los usuarios
+ *     responses:
+ *       200:
+ *         description: Lista de todos los usuarios registrados
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *
+ * /api/preferencias/historial/{userId}:
+ *   get:
+ *     tags: [Preferencias]
+ *     summary: Historial de reservas del usuario
+ *     description: Devuelve las últimas 10 reservas activas del usuario con detalles del espacio, tipo y zona.
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario
+ *     responses:
+ *       200:
+ *         description: Historial de reservas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   id_reserva:
+ *                     type: integer
+ *                   fecha_reserva:
+ *                     type: string
+ *                   hora_inicio:
+ *                     type: string
+ *                   hora_fin:
+ *                     type: string
+ *                   estado_reserva:
+ *                     type: string
+ *                   tipo_reserva:
+ *                     type: string
+ *                   check_in:
+ *                     type: string
+ *                   check_out:
+ *                     type: string
+ *                   observaciones:
+ *                     type: string
+ *                   codigo_espacio:
+ *                     type: string
+ *                   nombre_espacio:
+ *                     type: string
+ *                   estado_actual:
+ *                     type: string
+ *                   nombre_tipo:
+ *                     type: string
+ *                   tipo_descripcion:
+ *                     type: string
+ *                   nombre_zona:
+ *                     type: string
+ *                   zona_descripcion:
+ *                     type: string
+ *                   edificio:
+ *                     type: string
+ *       400:
+ *         description: userId requerido
+ *       500:
+ *         description: Error al obtener historial
+ *
+ * /api/preferencias/inferidas/{userId}:
+ *   get:
+ *     tags: [Preferencias]
+ *     summary: Preferencias inferidas del usuario
+ *     description: Infiere las preferencias del usuario a partir de su historial de reservas (tipo de espacio, zona, día y hora habitual).
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario
+ *     responses:
+ *       200:
+ *         description: Preferencias inferidas
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 id_usuario:
+ *                   type: integer
+ *                 nombre:
+ *                   type: string
+ *                 apellido:
+ *                   type: string
+ *                 correo_institucional:
+ *                   type: string
+ *                 rol:
+ *                   type: string
+ *                 preferred_space_type:
+ *                   type: string
+ *                   description: Tipo de espacio más reservado
+ *                 preferred_zone:
+ *                   type: string
+ *                   description: Zona más reservada
+ *                 preferred_day:
+ *                   type: string
+ *                   description: Día de la semana más frecuente
+ *                 avg_arrival_minute:
+ *                   type: integer
+ *                   description: Minuto promedio de llegada desde medianoche (dividir entre 60 para obtener hora)
+ *                 total_reservations:
+ *                   type: integer
+ *                 no_show_count:
+ *                   type: integer
+ *       400:
+ *         description: userId requerido
+ *       500:
+ *         description: Error al obtener preferencias inferidas
  */
 
 module.exports = {};

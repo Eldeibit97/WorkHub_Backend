@@ -19,6 +19,7 @@ const options = {
       { name: 'Auth', description: 'Login y JWT' },
       { name: 'Admin', description: 'Asignación de contraseñas (solo administradores)' },
       { name: 'Reservas', description: 'Reservas de oficina' },
+      { name: 'Preferencias', description: 'Historial y preferencias inferidas del usuario' },
       { name: 'Health', description: 'Estado del servicio' },
     ],
     components: {
