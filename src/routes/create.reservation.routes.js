@@ -10,7 +10,6 @@ router.post('/reservando', queriesReserva.createReservaOficina);
 
 router.get('/reservas', queries.getReservas);
 
-router.get('/reserva/:id_reserva', queries.getReservaByID);
 
 router.put('/reserva/update', queries.updateReserva);
 
