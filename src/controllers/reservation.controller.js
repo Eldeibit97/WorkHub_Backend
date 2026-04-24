@@ -191,4 +191,55 @@ const checkInReserva = async (req, res) => {
   }
 };
 
-module.exports = { getReservations, getUsers, getReservas, getReservaByID, updateReserva, createReservaOficina, checkAvailability, checkInReserva, createReserva };
+// Check-out reserva lógica
+const checkOutReserva = async (req, res) => {
+  try {
+    const { id_reserva } = req.body; 
+
+    if (!id_reserva) {
+      return res.status(400).json({ success: false, message: 'id_reserva es requerido' });
+    }
+
+    const result = await sql`
+      UPDATE "Reserva"
+      SET estado_reserva = 'COMPLETADO',
+          check_out = CURRENT_TIMESTAMP, /* CURRENT_TIMESTAMP es más estándar y seguro con timezones en SQL */
+          fecha_edicion = CURRENT_TIMESTAMP
+      WHERE id_reserva = ${id_reserva}
+        AND estado_reserva = 'CHECKED_IN' /* REGLA ESTRICTA: Solo actualiza si ESTÁ en CHECKED_IN */
+      RETURNING *;
+    `;
+
+    if (!result || result.length === 0) {
+      
+      const reservaCheck = await modeloReserva.encontrarPorId(id_reserva);
+      
+      if (!reservaCheck || reservaCheck.length === 0) {
+        return res.status(404).json({ success: false, message: 'Reserva no encontrada' });
+      }
+
+      const estadoActual = reservaCheck[0].estado_reserva;
+
+      if (estadoActual === 'COMPLETADO') {
+        return res.status(400).json({ success: false, message: 'El check-out ya fue realizado previamente' });
+      }
+      if (estadoActual === 'ACTIVO') {
+        return res.status(400).json({ success: false, message: 'No puedes hacer check-out porque aún no has hecho check-in' });
+      }
+      
+      return res.status(400).json({ success: false, message: `No se puede hacer check-out desde el estado: ${estadoActual}` });
+    }
+
+    res.json({
+      success: true,
+      message: 'Check-out realizado y espacio liberado correctamente',
+      data: result[0]
+    });
+
+  } catch (error) {
+    console.error('Error en check-out:', error);
+    res.status(500).json({ success: false, message: 'Error interno al procesar el check-out' });
+  }
+};
+
+module.exports = { getReservations, getUsers, getReservas, getReservaByID, updateReserva, createReservaOficina, checkAvailability, checkInReserva, createReserva, checkOutReserva };
