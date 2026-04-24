@@ -141,26 +141,29 @@ const checkInReserva = async (req, res) => {
     const r = reserva[0];
 
     // 2. Validar estado
-    if (r.estado_reserva !== 'ACTIVO') {
-      return res.status(400).json({ message: 'La reserva no está activa' });
+    if (r.estado_reserva === 'CHECKED_IN') {
+        return res.status(400).json({ message: 'Ya se hizo check-in' });
     }
 
-    if (r.estado_reserva === 'CHECKED_IN') {
-      return res.status(400).json({ message: 'Ya se hizo check-in' });
+    if (r.estado_reserva !== 'ACTIVO') {
+        return res.status(400).json({ message: 'La reserva no está activa' });
     }
 
     // 3. Validar ventana de tiempo (ej: 15 min antes y después)
     const ahora = new Date();
 
     const fechaReserva = new Date(r.fecha_reserva);
-    const [hora, minutos] = r.hora_inicio.split(':');
 
-    fechaReserva.setHours(hora, minutos, 0);
+    const [hora, minutos, segundos] = r.hora_inicio.split(':');
 
-    const margen = 15 * 60 * 1000; // 15 minutos
+    fechaReserva.setHours(parseInt(hora),parseInt(minutos),parseInt(segundos || 0));
 
-    const inicioVentana = new Date(fechaReserva.getTime() - margen);
-    const finVentana = new Date(fechaReserva.getTime() + margen);
+    const antes = 15 * 60 * 1000;
+
+    const despues = 30 * 60 * 1000;
+
+    const inicioVentana = new Date(fechaReserva.getTime() - antes);
+    const finVentana = new Date(fechaReserva.getTime() + despues);
 
     if (ahora < inicioVentana || ahora > finVentana) {
       return res.status(400).json({
@@ -172,7 +175,8 @@ const checkInReserva = async (req, res) => {
     await sql`
       UPDATE "Reserva"
       SET estado_reserva = 'CHECKED_IN',
-          check_in = NOW()
+          check_in = NOW(),
+          fecha_edicion = NOW()
       WHERE id_reserva = ${id_reserva}
     `;
 
