@@ -187,4 +187,4 @@ const checkInReserva = async (req, res) => {
   }
 };
 
-module.exports = { getReservations, getUsers, getReservas, getReservaByID, updateReserva, createReservaOficina, checkAvailability, checkInReserva, createReserva };
+module.exports = { getReservations, getUsers, getReservas, getReservaByID, updateReserva, createReserva, checkAvailability, checkInReserva };

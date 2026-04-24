@@ -21,7 +21,7 @@ if (!process.env.JWT_SECRET || String(process.env.JWT_SECRET).trim() === '') {
 // Opcional: JWT_EXPIRES_IN, FRONTEND_ORIGIN (CORS), ADMIN_EMAILS (correos admin, separados por coma)
 
 const app = express();
-const port = 3000;
+const port = 5500;
 
 // credentials: 'include' en el frontend exige origen concreto (no *) y credentials: true aquí
 app.use(
