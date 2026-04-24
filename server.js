@@ -40,7 +40,8 @@ app.get('/api/docs.json', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', usersRoutes);
-app.use('/api', rutas);
+app.use('/api/preferences', preferencesRoutes);
+app.use('/api', reservationRoutes);
 
 if (!process.env.ADMIN_EMAILS || !String(process.env.ADMIN_EMAILS).trim()) {
   console.warn(
