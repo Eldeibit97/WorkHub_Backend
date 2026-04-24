@@ -64,3 +64,28 @@ exports.updateReserva = async (req, res) => {
         });
     }
 };
+exports.deleteReserva = async (req, res) => {
+    const { id_reserva } = req.params; 
+
+    try {
+        const result = await sql`DELETE FROM "Reserva" WHERE id_reserva = ${id_reserva} RETURNING *`;
+
+        if (result.length === 0) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'No se encontró la reserva para eliminar' 
+            });
+        }
+
+        res.json({ 
+            success: true, 
+            message: 'Reserva eliminada correctamente' 
+        });
+    } catch (error) {
+        console.error('Error al eliminar:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error interno del servidor al eliminar' 
+        });
+    }
+};
