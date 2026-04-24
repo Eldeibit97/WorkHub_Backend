@@ -31,13 +31,13 @@ class ModeloReserva {
         try {
             const inserted = await sql`INSERT INTO "Reserva" (id_usuario, id_espacio, fecha_reserva, hora_inicio, hora_fin, estado_reserva, fecha_creacion, tipo_reserva)
                   VALUES (${datosReserva.idUsuario}, ${datosReserva.idEspacio}, ${datosReserva.fechaReserva}, ${datosReserva.horaInicio}, ${datosReserva.horaSalida}, 'PENDIENTE', ${datosReserva.fechaCreacion}, 'INDIVIDUAL')`;
-            console.log('La reserva se creo de manera apropiada');
             return true;
         } catch (error) {
             console.log('No se realizo la reserva', error);
             return false;
         }
     };
+
     static async verificarReservaActiva(id_usuario) {
         if (!id_usuario) {
             return [];

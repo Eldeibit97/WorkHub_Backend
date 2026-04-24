@@ -122,7 +122,7 @@ const reservarEspacio = async (datosReserva) => {
   if(respuesta){
     return {
       status: 200,
-      message: 'La respuesta se creo de manera correcta'
+      message: 'La reserva se creo de manera correcta'
     };
   }else{
     return {
