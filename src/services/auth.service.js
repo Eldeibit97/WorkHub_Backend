@@ -29,7 +29,7 @@ function publicUser(user) {
 }
 
 async function login(correo_institucional, password) {
-  const user = await ModeloUsuario.encontralPorMail(correo_institucional);
+  const user = await ModeloUsuario.encontrarPorMail(correo_institucional);
   if (!user) {
     return { ok: false, status: 401, message: 'Credenciales inválidas' };
   }
