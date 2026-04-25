@@ -21,8 +21,8 @@ async function main() {
     process.exit(1);
   }
 
-  const user = await ModeloUsuario.encontralPorMail(email.trim());
-  if (!user) {
+  const user = await ModeloUsuario.encontrarPorMail(email.trim());
+  if (!user || user.id_usuario === -1) {
     const e = email.trim();
     console.error(`No existe ninguna fila en "Usuario" con correo_institucional = "${e}".`);
     console.error(

@@ -7,7 +7,11 @@ class ModeloUsuario {
         throw new Error('No se proporciono un correo')
         return { id_usuario: -1 };
       }
-      const rows = await sql`SELECT id_usuario FROM "Usuario" WHERE correo_institucional = ${mail}`;
+      const rows = await sql`
+        SELECT id_usuario, password_hash, correo_institucional, nombre, apellido, rol
+          FROM "Usuario"
+         WHERE correo_institucional = ${mail}
+      `;
       if (!rows.length) {
         throw new Error('El correo no esta registrado o no existe');
       }

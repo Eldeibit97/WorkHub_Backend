@@ -5,8 +5,8 @@ const BCRYPT_ROUNDS = 12;
 const MIN_PASSWORD_LENGTH = 8;
 
 async function assignPasswordByEmail(correo_institucional, password) {
-  const user = await ModeloUsuario.encontralPorMail(correo_institucional);
-  if (!user) {
+  const user = await ModeloUsuario.encontrarPorMail(correo_institucional);
+  if (!user || user.id_usuario === -1) {
     return { ok: false, status: 404, message: 'Usuario no encontrado' };
   }
 
