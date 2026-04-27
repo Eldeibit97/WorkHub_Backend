@@ -72,44 +72,6 @@ const fetchReservations = async (userId, status) => {
   }
 };
 
-<<<<<<< HEAD
-const fetchAvailability = async (date) => {
-  try {
-    result = await sql`
-        SELECT
-            e.id_espacio,
-            e.codigo_espacio,
-            e.nombre_espacio,
-            e.estado_actual,
-
-            te.nombre_tipo,
-
-            z.nombre_zona,
-            z.edificio
-
-        FROM public."Espacio" e
-        JOIN public."Tipo_Espacio" te ON e.id_tipo_espacio = te.id_tipo_espacio
-        JOIN public."Zona" z          ON e.id_zona         = z.id_zona
-
-        WHERE e.activo = true
-        AND e.estado_actual = 'DISPONIBLE'
-        AND e.id_espacio NOT IN (
-            SELECT r.id_espacio
-            FROM public."Reserva" r
-            WHERE DATE(r.fecha_reserva) = ${date}        -- date param: YYYY-MM-DD
-                AND r.estado_reserva IN ('PENDIENTE', 'ACTIVO', 'CHECKED_IN')
-        )
-
-        ORDER BY z.nombre_zona, e.nombre_espacio;
-        `
-    return result;
-  }
-  catch (error) {
-    console.error("Error checking availability:", error);
-    throw error;
-  }
-}
-=======
 const fetchAvailability = async (date, id_zona) => {
   try {
     const result = await sql`
@@ -119,7 +81,6 @@ const fetchAvailability = async (date, id_zona) => {
         e.nombre_espacio,
         te.nombre_tipo AS tipo,
         z.nombre_zona,
-        -- Esta columna es clave: nos dice si ya hay una reserva para esa fecha
         EXISTS (
           SELECT 1 
           FROM public."Reserva" r
@@ -129,19 +90,17 @@ const fetchAvailability = async (date, id_zona) => {
         ) AS ocupado
       FROM public."Espacio" e
       JOIN public."Tipo_Espacio" te ON e.id_tipo_espacio = te.id_tipo_espacio
-      JOIN public."Zona" z          ON e.id_zona         = z.id_zona
+      JOIN public."Zona" z ON e.id_zona = z.id_zona
       WHERE e.activo = true
-        AND e.id_zona = ${id_zona} -- Solo traemos el piso seleccionado
+        AND e.id_zona = ${id_zona}
       ORDER BY e.codigo_espacio ASC;
     `;
-    
     return result;
   } catch (error) {
     console.error("Error checking availability in Service:", error);
     throw error;
   }
 };
->>>>>>> Check-in
 
 const reservarEspacio = async (datosReserva) => {
   const usuario = await modeloUsuario.encontrarPorMail(datosReserva.mail);
