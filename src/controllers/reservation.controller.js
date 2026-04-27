@@ -87,6 +87,7 @@ const updateReserva = async (req, res) => {
 };
 
 const checkAvailability = async (req, res) => {
+<<<<<<< HEAD
   try {
     const { date } = req.query;
 
@@ -103,6 +104,26 @@ const checkAvailability = async (req, res) => {
     console.error("Error checking availability:", error);
     res.status(500).json({ message: 'Error checking availability' });
   }
+=======
+    try {
+        const { date, zona } = req.query; // <--- Agregamos 'zona'
+
+        if (!date || !zona) {
+            return res.status(400).json({ 
+                message: 'Faltan parámetros: date (YYYY-MM-DD) y zona (ID de zona) son requeridos' 
+            });
+        }
+
+        // Ahora le pasamos ambos parámetros al servicio
+        const availability = await fetchAvailability(date, zona);
+
+        res.json(availability);
+
+    } catch (error) {
+        console.error("Error checking availability:", error);
+        res.status(500).json({ message: 'Error checking availability' });
+    }
+>>>>>>> Check-in
 };
 
 const createReserva = async (req, res) => {
