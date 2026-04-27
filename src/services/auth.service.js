@@ -36,7 +36,7 @@ function publicUser(user) {
 
 async function login(correo_institucional, password) {
   const user = await ModeloUsuario.encontrarPorMail(correo_institucional);
-  if (!user) {
+  if (!user || user.id_usuario === -1) {
     return { ok: false, status: 401, message: 'Credenciales inválidas' };
   }
 
