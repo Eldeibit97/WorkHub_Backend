@@ -3,7 +3,7 @@ const adminService = require('../services/admin.service');
 function normalizeCorreo(body) {
   const raw =
     body.correo_institucional ?? body.email ?? body.correo ?? body.mail;
-  return typeof raw === 'string' ? raw.trim() : '';
+  return typeof raw === 'string' ? raw.trim().toLowerCase() : '';
 }
 
 const assignPassword = async (req, res) => {
