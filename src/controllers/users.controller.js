@@ -1,6 +1,5 @@
 const ModeloUsuario = require('../models/modeloUsuario');
-
-const ROLES_VALIDOS = ['employee', 'admin'];
+const { ALLOWED_ROLES } = require('../constants/roles');
 
 /** GET /api/users  — lista todos los usuarios (solo admin) */
 const listarUsuarios = async (req, res) => {
@@ -20,9 +19,9 @@ const reasignarRol = async (req, res) => {
     const id_usuario = parseInt(req.params.id, 10);
     const { rol } = req.body || {};
 
-    if (!rol || !ROLES_VALIDOS.includes(rol)) {
+    if (!rol || !ALLOWED_ROLES.includes(rol)) {
       return res.status(400).json({
-        message: `Rol inválido. Valores permitidos: ${ROLES_VALIDOS.join(', ')}`,
+        message: `Rol inválido. Valores permitidos: ${ALLOWED_ROLES.join(', ')}`,
       });
     }
 

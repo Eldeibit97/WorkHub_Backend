@@ -18,15 +18,38 @@ if (!process.env.JWT_SECRET || String(process.env.JWT_SECRET).trim() === '') {
   process.exit(1);
 }
 
-// Opcional: JWT_EXPIRES_IN, FRONTEND_ORIGIN (CORS), ADMIN_EMAILS (correos admin, separados por coma)
+// Opcional: JWT_EXPIRES_IN, FRONTEND_ORIGIN(S) (CORS), ADMIN_EMAILS (correos admin, separados por coma)
 
 const app = express();
 const port = 5500;
 
+const allowedOrigins = (process.env.FRONTEND_ORIGINS || process.env.FRONTEND_ORIGIN || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const corsOrigin =
+  allowedOrigins.length === 0
+    ? 'http://localhost:5173'
+    : (origin, callback) => {
+        // Permite requests sin origin (healthchecks, curl, backend-to-backend).
+        if (!origin) {
+          return callback(null, true);
+        }
+
+        if (allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+
+        return callback(
+          new Error(`CORS bloqueado para origin: ${origin}. Configura FRONTEND_ORIGINS.`)
+        );
+      };
+
 // credentials: 'include' en el frontend exige origen concreto (no *) y credentials: true aquí
 app.use(
   cors({
-    origin: process.env.FRONTEND_ORIGIN || 'http://localhost:5173',
+    origin: corsOrigin,
     credentials: true,
   })
 );
