@@ -8,7 +8,7 @@ const login = async (req, res) => {
     const passwordRaw = body.password;
 
     const correo_institucional =
-      typeof correoRaw === 'string' ? correoRaw.trim() : '';
+      typeof correoRaw === 'string' ? correoRaw.trim().toLowerCase() : '';
     const password = typeof passwordRaw === 'string' ? passwordRaw : '';
 
     if (!correo_institucional || !password) {

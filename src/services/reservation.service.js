@@ -106,7 +106,7 @@ const reservarEspacio = async (datosReserva) => {
   const usuario = await modeloUsuario.encontrarPorMail(datosReserva.mail);
   if (usuario.id_usuario === -1) {
     return {
-      status: 404,
+      status: 400,
       message: 'El correo con el que se intenta reservar no esta registrado en la plataforma'
     }
   }
