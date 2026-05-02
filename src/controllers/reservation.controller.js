@@ -117,10 +117,10 @@ const createReserva = async (req, res) => {
       res.status(400).json({ message: "Todos los campos deben ser llenados" });
     }
     const response = await reservationService.reservarEspacio(datos);
-    res.status(response.status).json({ message: response.message })
+    res.status(response.status).json({ status: response.status, message: response.message })
   } catch (error) {
     console.error('Error creando la reserva', error);
-    res.status(400).json({ message: "Error al crear la reserva" });
+    res.status(400).json({ status: 400, message: "Error al crear la reserva" });
   }
 };
 
