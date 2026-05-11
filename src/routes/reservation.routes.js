@@ -1,10 +1,18 @@
 const express = require('express');
 const router = express.Router();
+const { authenticate, authorize } = require('../middleware/authenticate');
 const queries = require('../controllers/reservation.controller');
 
 router.post('/reservando', queries.createReserva);
 
 router.get('/reservas', queries.getReservas);
+
+router.post(
+  '/reservas/batch',
+  authenticate,
+  authorize('admin', 'employee'),
+  queries.batchCreateReservas
+);
 
 router.put('/reservas/update', queries.updateReserva);
 

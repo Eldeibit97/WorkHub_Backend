@@ -2,7 +2,12 @@ const { sql } = require('../config/db.js');
 const modeloUsuario = require('../models/modeloUsuario.js');
 const modeloReserva = require('../models/modeloReserva.js');
 const reservationService = require('../services/reservation.service.js');
-const { fetchReservations, fetchAvailability } = require('../services/reservation.service');
+const {
+  fetchReservations,
+  fetchAvailability,
+  fetchAvailabilityWindow,
+  createReservationsBatch,
+} = reservationService;
 
 const getUsers = async (req, res) => {
   const users = await sql`SELECT * FROM "Usuario"`;
@@ -87,24 +92,70 @@ const updateReserva = async (req, res) => {
 };
 
 const checkAvailability = async (req, res) => {
-    try {
-        const { date, zona } = req.query; // <--- Agregamos 'zona'
+  try {
+    const q = req.query || {};
+    const fecha = q.fecha ?? q.date;
+    const zonaRaw = q.zonaId ?? q.zona;
+    const horaInicio = q.horaInicio;
+    const horaFin = q.horaFin;
 
-        if (!date || !zona) {
-            return res.status(400).json({ 
-                message: 'Faltan parámetros: date (YYYY-MM-DD) y zona (ID de zona) son requeridos' 
-            });
+    if (fecha != null && fecha !== '' && zonaRaw != null && zonaRaw !== '') {
+      const hasWindow = horaInicio != null && horaInicio !== '' && horaFin != null && horaFin !== '';
+      if (hasWindow) {
+        const zonaId = parseInt(String(zonaRaw), 10);
+        if (!Number.isFinite(zonaId)) {
+          return res.status(400).json({ message: 'zonaId inválido' });
         }
-
-        // Ahora le pasamos ambos parámetros al servicio
-        const availability = await fetchAvailability(date, zona);
-
-        res.json(availability);
-
-    } catch (error) {
-        console.error("Error checking availability:", error);
-        res.status(500).json({ message: 'Error checking availability' });
+        try {
+          const availability = await fetchAvailabilityWindow(
+            zonaId,
+            String(fecha),
+            String(horaInicio),
+            String(horaFin)
+          );
+          return res.json(availability);
+        } catch (err) {
+          if (err.status === 400) {
+            return res.status(400).json({ message: err.message });
+          }
+          throw err;
+        }
+      }
     }
+
+    const date = q.date ?? q.fecha;
+    const zona = q.zona ?? q.zonaId;
+    if (!date || zona === undefined || zona === null || zona === '') {
+      return res.status(400).json({
+        message:
+          'Faltan parámetros: date/fecha (YYYY-MM-DD) y zona/zonaId; con horaInicio y horaFin se usa disponibilidad por franja',
+      });
+    }
+
+    const availability = await fetchAvailability(date, zona);
+    return res.json(availability);
+  } catch (error) {
+    console.error('Error checking availability:', error);
+    return res.status(500).json({ message: 'Error checking availability' });
+  }
+};
+
+const batchCreateReservas = async (req, res) => {
+  try {
+    const { reservas } = req.body || {};
+    const result = await createReservationsBatch(req.user.sub, reservas);
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+    return res.status(201).json({
+      creadas: result.ids.length,
+      ids: result.ids,
+      reservas: result.ids.map((id) => ({ idReserva: id })),
+    });
+  } catch (error) {
+    console.error('batchCreateReservas', error);
+    return res.status(500).json({ message: 'Error al crear reservas' });
+  }
 };
 
 const createReserva = async (req, res) => {
@@ -244,4 +295,15 @@ const checkOutReserva = async (req, res) => {
   }
 };
 
-module.exports = { getReservations, getUsers, getReservas, getReservaByID, updateReserva, checkAvailability, checkInReserva, createReserva, checkOutReserva };
+module.exports = {
+  getReservations,
+  getUsers,
+  getReservas,
+  getReservaByID,
+  updateReserva,
+  checkAvailability,
+  checkInReserva,
+  createReserva,
+  checkOutReserva,
+  batchCreateReservas,
+};

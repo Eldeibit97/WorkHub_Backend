@@ -1,7 +1,8 @@
 const { sql } = require('../config/db');
-const modeloUsuario = require('../models/modeloUsuario')
+const modeloUsuario = require('../models/modeloUsuario');
 const modeloReserva = require('../models/modeloReserva');
-const { response } = require('express');
+const { normalizeTimeLabel, intervalsOverlap, toMinutes } = require('../utils/timeRange');
+const spacesService = require('./spaces.service');
 
 const fetchReservations = async (userId, status) => {
   try {
@@ -110,21 +111,205 @@ const reservarEspacio = async (datosReserva) => {
     return {
       status: 404,
       message: 'El correo con el que se intenta reservar no esta registrado en la plataforma'
-    }
+    };
   }
   const datosCorrectos = { ...datosReserva, idUsuario: usuario.id_usuario };
   const respuesta = await modeloReserva.crearReserva(datosCorrectos);
-  if(respuesta){
+  if (respuesta) {
     return {
       status: 200,
       message: 'La reserva se creo de manera correcta'
     };
-  }else{
-    return {
-      status: 400,
-      message: 'Hubo un error al crear la reserva'
-    };
   }
+  return {
+    status: 400,
+    message: 'Hubo un error al crear la reserva'
+  };
 };
 
-module.exports = { fetchReservations, fetchAvailability, reservarEspacio };
+async function hasConflictingReservation(idEspacio, fecha, horaInicio, horaFin) {
+  const hi = normalizeTimeLabel(horaInicio);
+  const hf = normalizeTimeLabel(horaFin);
+  const rows = await sql`
+    SELECT 1
+      FROM public."Reserva" r
+     WHERE r.id_espacio = ${idEspacio}
+       AND DATE(r.fecha_reserva) = ${fecha}::date
+       AND r.estado_reserva IN ('PENDIENTE', 'ACTIVO', 'CHECKED_IN')
+       AND r.hora_inicio::time < ${hf}::time
+       AND r.hora_fin::time > ${hi}::time
+     LIMIT 1
+  `;
+  return rows.length > 0;
+}
+
+function validateBatchNoInternalOverlap(normalizedItems) {
+  const byKey = new Map();
+  for (const it of normalizedItems) {
+    const key = `${it.idEspacio}|${it.fechaReserva}`;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(it);
+  }
+  for (const list of byKey.values()) {
+    for (let i = 0; i < list.length; i += 1) {
+      for (let j = i + 1; j < list.length; j += 1) {
+        if (
+          intervalsOverlap(
+            list[i].horaInicio,
+            list[i].horaSalida,
+            list[j].horaInicio,
+            list[j].horaSalida
+          )
+        ) {
+          return {
+            ok: false,
+            message: 'Hay reservas solapadas en el mismo espacio y fecha en el lote'
+          };
+        }
+      }
+    }
+  }
+  return { ok: true };
+}
+
+function collectReturningIds(transactionResults) {
+  const ids = [];
+  for (const r of transactionResults) {
+    if (Array.isArray(r) && r[0]?.id_reserva != null) {
+      ids.push(r[0].id_reserva);
+    } else if (r?.rows?.[0]?.id_reserva != null) {
+      ids.push(r.rows[0].id_reserva);
+    } else if (r?.id_reserva != null) {
+      ids.push(r.id_reserva);
+    }
+  }
+  return ids;
+}
+
+/**
+ * Crear varias reservas en una transacción (usuario tomado del JWT).
+ */
+async function createReservationsBatch(idUsuario, items) {
+  if (idUsuario == null || Number.isNaN(Number(idUsuario))) {
+    return { ok: false, status: 401, message: 'Usuario no válido en token' };
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return { ok: false, status: 400, message: 'reservas debe ser un array no vacío' };
+  }
+
+  const normalized = [];
+  for (const raw of items) {
+    const idEspacio = parseInt(raw.idEspacio ?? raw.id_espacio, 10);
+    const fechaReserva = raw.fechaReserva ?? raw.fecha_reserva;
+    const horaInicio = normalizeTimeLabel(raw.horaInicio ?? raw.hora_inicio);
+    const horaSalida = normalizeTimeLabel(
+      raw.horaSalida ?? raw.hora_salida ?? raw.hora_fin
+    );
+    const tipoReserva = raw.tipoReserva ?? raw.tipo_reserva ?? 'INDIVIDUAL';
+
+    if (!Number.isFinite(idEspacio) || !fechaReserva || !horaInicio || !horaSalida) {
+      return {
+        ok: false,
+        status: 400,
+        message:
+          'Cada reserva requiere idEspacio, fechaReserva (YYYY-MM-DD), horaInicio y horaSalida (HH:mm)'
+      };
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fechaReserva))) {
+      return { ok: false, status: 400, message: 'fechaReserva debe ser YYYY-MM-DD' };
+    }
+    if (toMinutes(horaInicio) >= toMinutes(horaSalida)) {
+      return {
+        ok: false,
+        status: 400,
+        message: 'horaInicio debe ser anterior a horaSalida en cada reserva'
+      };
+    }
+    normalized.push({
+      idEspacio,
+      fechaReserva: String(fechaReserva),
+      horaInicio,
+      horaSalida,
+      tipoReserva: String(tipoReserva)
+    });
+  }
+
+  const internal = validateBatchNoInternalOverlap(normalized);
+  if (!internal.ok) {
+    return { ok: false, status: 400, message: internal.message };
+  }
+
+  const uniqueSpaces = [...new Set(normalized.map((x) => x.idEspacio))];
+  for (const id of uniqueSpaces) {
+    const sp = await sql`
+      SELECT id_espacio
+        FROM public."Espacio"
+       WHERE id_espacio = ${id}
+         AND activo = true
+       LIMIT 1
+    `;
+    if (!sp.length) {
+      return {
+        ok: false,
+        status: 400,
+        message: `Espacio ${id} no existe o está inactivo`
+      };
+    }
+  }
+
+  for (const it of normalized) {
+    const conflict = await hasConflictingReservation(
+      it.idEspacio,
+      it.fechaReserva,
+      it.horaInicio,
+      it.horaSalida
+    );
+    if (conflict) {
+      return {
+        ok: false,
+        status: 409,
+        message: `Conflicto de horario en espacio ${it.idEspacio} el ${it.fechaReserva}`
+      };
+    }
+  }
+
+  const uid = Number(idUsuario);
+  const stmts = normalized.map(
+    (it) => sql`
+    INSERT INTO public."Reserva" (
+      id_usuario, id_espacio, fecha_reserva, hora_inicio, hora_fin,
+      estado_reserva, fecha_creacion, tipo_reserva
+    ) VALUES (
+      ${uid},
+      ${it.idEspacio},
+      ${it.fechaReserva}::date,
+      ${it.horaInicio},
+      ${it.horaSalida},
+      'PENDIENTE',
+      NOW(),
+      ${it.tipoReserva}
+    )
+    RETURNING id_reserva
+  `
+  );
+
+  try {
+    const results = await sql.transaction(stmts);
+    const ids = collectReturningIds(results);
+    if (ids.length !== normalized.length) {
+      return { ok: false, status: 500, message: 'No se pudieron obtener todos los id de reserva' };
+    }
+    return { ok: true, status: 201, ids };
+  } catch (error) {
+    console.error('createReservationsBatch', error);
+    return { ok: false, status: 500, message: 'Error al guardar las reservas' };
+  }
+}
+
+module.exports = {
+  fetchReservations,
+  fetchAvailability,
+  reservarEspacio,
+  createReservationsBatch,
+  fetchAvailabilityWindow: spacesService.fetchAvailabilityWindow
+};
