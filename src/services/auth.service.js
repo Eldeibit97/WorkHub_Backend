@@ -57,4 +57,4 @@ async function login(correo_institucional, password) {
   return { ok: true, token, user: publicUser(user) };
 }
 
-module.exports = { login, MIN_PASSWORD_LENGTH };
+module.exports = { login, MIN_PASSWORD_LENGTH, publicUser };

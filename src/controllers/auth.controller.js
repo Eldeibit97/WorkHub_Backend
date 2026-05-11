@@ -1,9 +1,30 @@
 const authService = require('../services/auth.service');
+const ModeloUsuario = require('../models/modeloUsuario');
 const {
   regenerateSession,
   assignUserToSession,
   destroySession,
 } = require('../config/session');
+
+const getMe = async (req, res) => {
+  try {
+    const id = req.user?.sub;
+    if (id == null || !Number.isFinite(Number(id))) {
+      return res.status(401).json({ message: 'No autenticado' });
+    }
+
+    const row = await ModeloUsuario.encontrarPorId(Number(id));
+    if (!row) {
+      return res.status(401).json({ message: 'Usuario no encontrado' });
+    }
+
+    const user = authService.publicUser(row);
+    return res.status(200).json({ user });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Error del servidor' });
+  }
+};
 
 const login = async (req, res) => {
   try {
@@ -54,4 +75,4 @@ const logout = async (req, res) => {
   }
 };
 
-module.exports = { login, logout };
+module.exports = { getMe, login, logout };
