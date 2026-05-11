@@ -115,6 +115,16 @@ async function createUser(body) {
     };
   }
 
+  //Pre check para correos duplicados, para evitar hacer bcrypt innecesariamente
+  const existing = await ModeloUsuario.encontrarPorMail(correo_institucional);
+  if (existing && existing.id_usuario !== -1) {
+    return {
+      ok: false,
+      status: 409,
+      message: 'Ya existe un usuario con ese correo_institucional',
+    };
+  }
+
   const password_hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
   try {
