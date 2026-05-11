@@ -1,4 +1,9 @@
 const authService = require('../services/auth.service');
+const {
+  regenerateSession,
+  assignUserToSession,
+  destroySession,
+} = require('../config/session');
 
 const login = async (req, res) => {
   try {
@@ -23,6 +28,9 @@ const login = async (req, res) => {
       return res.status(result.status).json({ message: result.message });
     }
 
+    await regenerateSession(req);
+    assignUserToSession(req, result.user);
+
     return res.status(200).json({ token: result.token, user: result.user });
   } catch (error) {
     if (error.code === 'JWT_CONFIG') {
@@ -33,4 +41,17 @@ const login = async (req, res) => {
   }
 };
 
-module.exports = { login };
+const logout = async (req, res) => {
+  try {
+    if (!req.session) {
+      return res.status(204).send();
+    }
+    await destroySession(req);
+    return res.status(204).send();
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'No se pudo cerrar sesión' });
+  }
+};
+
+module.exports = { login, logout };

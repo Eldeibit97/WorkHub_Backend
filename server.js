@@ -19,10 +19,23 @@ if (!process.env.JWT_SECRET || String(process.env.JWT_SECRET).trim() === '') {
   process.exit(1);
 }
 
-// Opcional: JWT_EXPIRES_IN, FRONTEND_ORIGIN(S) (CORS), ADMIN_EMAILS (correos admin, separados por coma)
+if (!process.env.SESSION_SECRET || String(process.env.SESSION_SECRET).trim() === '') {
+  console.error(
+    '[WorkHub] Define SESSION_SECRET en .env (cadena larga aleatoria, distinta de JWT_SECRET) para la cookie de sesión.'
+  );
+  process.exit(1);
+}
+
+// Opcional: JWT_EXPIRES_IN, FRONTEND_ORIGIN(S) (CORS), ADMIN_EMAILS, TRUST_PROXY=true detrás de Nginx/proxy
+
+const { createSessionMiddleware } = require('./src/config/session');
 
 const app = express();
 const port = 5500;
+
+if (process.env.TRUST_PROXY === 'true' || process.env.TRUST_PROXY === '1') {
+  app.set('trust proxy', 1);
+}
 
 const allowedOrigins = (process.env.FRONTEND_ORIGINS || process.env.FRONTEND_ORIGIN || '')
   .split(',')
@@ -55,6 +68,7 @@ app.use(
   })
 );
 app.use(express.json());
+app.use(createSessionMiddleware());
 
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { customSiteTitle: 'WorkHub API' }));
 app.get('/api/docs.json', (req, res) => {

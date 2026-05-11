@@ -29,7 +29,7 @@
  *                 format: password
  *     responses:
  *       200:
- *         description: JWT y datos públicos del usuario
+ *         description: JWT (migración), usuario y cookie de sesión workhub.sid (usar fetch con credentials en el cliente)
  *         content:
  *           application/json:
  *             schema:
@@ -55,11 +55,22 @@
  *       403:
  *         description: Cuenta sin contraseña asignada
  *
+ * /api/auth/logout:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Cerrar sesión
+ *     description: Destruye la sesión en la base de datos y elimina la cookie workhub.sid. El cliente debe enviar cookies (credentials include). No requiere body.
+ *     responses:
+ *       204:
+ *         description: Sesión cerrada
+ *       500:
+ *         description: Error al cerrar sesión
+ *
  * /api/admin/assign-password:
  *   post:
  *     tags: [Admin]
  *     summary: Asignar contraseña a un usuario existente
- *     description: El correo del JWT debe estar en ADMIN_EMAILS del servidor.
+ *     description: El usuario autenticado (cookie de sesión o JWT) debe estar en ADMIN_EMAILS del servidor.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
