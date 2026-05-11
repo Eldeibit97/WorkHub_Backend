@@ -1,6 +1,5 @@
 const session = require('express-session');
-const pg = require('pg');
-const connectPgSimple = require('connect-pg-simple')(session);
+const { NeonSessionStore } = require('../stores/neonSessionStore');
 
 /** Nombre de cookie alineado con documentación para el frontend. */
 const SESSION_COOKIE_NAME = 'workhub.sid';
@@ -44,16 +43,6 @@ function sessionCookieOptions() {
   };
 }
 
-/**
- * Pool dedicado para el store de sesiones (connect-pg-simple).
- * No reutilizar el cliente Neon serverless `sql` aquí.
- */
-function createSessionPool() {
-  return new pg.Pool({
-    connectionString: process.env.DATABASE_URL,
-  });
-}
-
 function createSessionMiddleware() {
   const sessionSecret = process.env.SESSION_SECRET;
   if (!sessionSecret || String(sessionSecret).trim() === '') {
@@ -62,13 +51,7 @@ function createSessionMiddleware() {
     );
   }
 
-  const pool = createSessionPool();
-  const store = new connectPgSimple({
-    pool,
-    createTableIfMissing: true,
-    tableName: 'session',
-  });
-
+  const store = new NeonSessionStore();
   const cookie = sessionCookieOptions();
 
   return session({
