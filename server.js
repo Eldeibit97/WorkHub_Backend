@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
 const reservationRoutes = require('./src/routes/reservation.routes');
+const spacesRoutes = require('./src/routes/spaces.routes');
 const authRoutes = require('./src/routes/auth.routes');
 const adminRoutes = require('./src/routes/admin.routes');
 const usersRoutes = require('./src/routes/users.routes');
@@ -64,6 +65,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/preferences', preferencesRoutes);
+app.use('/api', spacesRoutes);
 app.use('/api', reservationRoutes);
 
 if (!process.env.ADMIN_EMAILS || !String(process.env.ADMIN_EMAILS).trim()) {
