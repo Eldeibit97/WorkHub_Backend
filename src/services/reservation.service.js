@@ -6,64 +6,35 @@ const spacesService = require('./spaces.service');
 
 const fetchReservations = async (userId, status) => {
   try {
-    let result;
+    const statusFilter = status ?? null;
 
-    if (status) {
-      result = await sql`
-        SELECT 
-          r.id_reserva,
-          r.fecha_reserva,
-          r.hora_inicio,
-          r.hora_fin,
-          r.estado_reserva,
-          r.tipo_reserva,
+    const result = await sql`
+      SELECT 
+        r.id_reserva,
+        r.fecha_reserva,
+        r.hora_inicio,
+        r.hora_fin,
+        r.estado_reserva,
+        r.tipo_reserva,
 
-          e.nombre_espacio,
-          e.codigo_espacio,
+        e.nombre_espacio,
+        e.codigo_espacio,
 
-          z.nombre_zona,
-          z.edificio,
+        z.nombre_zona,
+        z.edificio,
 
-          t.nombre_tipo
+        t.nombre_tipo
 
-        FROM "Reserva" r
-        JOIN "Espacio" e ON r.id_espacio = e.id_espacio
-        JOIN "Zona" z ON e.id_zona = z.id_zona
-        JOIN "Tipo_Espacio" t ON e.id_tipo_espacio = t.id_tipo_espacio
+      FROM "Reserva" r
+      JOIN "Espacio" e ON r.id_espacio = e.id_espacio
+      JOIN "Zona" z ON e.id_zona = z.id_zona
+      JOIN "Tipo_Espacio" t ON e.id_tipo_espacio = t.id_tipo_espacio
 
-        WHERE r.id_usuario = ${userId}
-        AND r.estado_reserva = ${status}
+      WHERE r.id_usuario = ${userId}
+        AND (${statusFilter}::text IS NULL OR r.estado_reserva = ${statusFilter})
 
-        ORDER BY r.fecha_creacion DESC
-      `;
-    } else {
-      result = await sql`
-        SELECT 
-          r.id_reserva,
-          r.fecha_reserva,
-          r.hora_inicio,
-          r.hora_fin,
-          r.estado_reserva,
-          r.tipo_reserva,
-
-          e.nombre_espacio,
-          e.codigo_espacio,
-
-          z.nombre_zona,
-          z.edificio,
-
-          t.nombre_tipo
-
-        FROM "Reserva" r
-        JOIN "Espacio" e ON r.id_espacio = e.id_espacio
-        JOIN "Zona" z ON e.id_zona = z.id_zona
-        JOIN "Tipo_Espacio" t ON e.id_tipo_espacio = t.id_tipo_espacio
-
-        WHERE r.id_usuario = ${userId}
-
-        ORDER BY r.fecha_creacion DESC
-      `;
-    }
+      ORDER BY r.fecha_creacion DESC
+    `;
 
     return result;
 
