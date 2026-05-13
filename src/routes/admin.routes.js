@@ -2,6 +2,10 @@ const express = require('express');
 const { requireAdmin } = require('../middleware/requireAdmin');
 const { assignPassword } = require('../controllers/admin.controller');
 const {
+  listUserReservations,
+  cancelUserReservation,
+} = require('../controllers/adminReservations.controller');
+const {
   getRolesCatalog,
   listAdminUsers,
   createAdminUser,
@@ -21,6 +25,8 @@ router.get('/stats', requireAdmin, getAdminStats);
 router.get('/users', requireAdmin, listAdminUsers);
 router.post('/users/import-csv', requireAdmin, importUsersCsv);
 router.post('/users', requireAdmin, createAdminUser);
+router.get('/users/:id/reservations', requireAdmin, listUserReservations);
+router.patch('/users/:id/reservations/:reservationId/cancel', requireAdmin, cancelUserReservation);
 router.patch('/users/:id/password', requireAdmin, patchUserPassword);
 router.patch('/users/:id/roles', requireAdmin, patchUserRoles);
 router.patch('/users/:id', requireAdmin, patchUserProfile);
