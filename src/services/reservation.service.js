@@ -74,6 +74,7 @@ const fetchReservations = async (userId, status) => {
   }
 };
 
+
 const fetchAllReservas = async () => {
   try {
     const result = await sql`SELECT * FROM "Reserva"`;
