@@ -18,4 +18,6 @@ router.get('/usuarios', queries.getUsers);
 
 router.put('/reservas/check-in', queries.checkInReserva);
 
+router.post('/reservas/tieneReserva', queries.tieneReserva);
+
 module.exports = router;

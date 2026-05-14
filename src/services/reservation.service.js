@@ -96,7 +96,7 @@ const fetchAvailability = async (date, id_zona) => {
         AND e.id_zona = ${id_zona} -- Solo traemos el piso seleccionado
       ORDER BY e.codigo_espacio ASC;
     `;
-    
+
     return result;
   } catch (error) {
     console.error("Error checking availability in Service:", error);
@@ -114,12 +114,12 @@ const reservarEspacio = async (datosReserva) => {
   }
   const datosCorrectos = { ...datosReserva, idUsuario: usuario.id_usuario };
   const respuesta = await modeloReserva.crearReserva(datosCorrectos);
-  if(respuesta){
+  if (respuesta) {
     return {
       status: 200,
       message: 'La reserva se creo de manera correcta'
     };
-  }else{
+  } else {
     return {
       status: 400,
       message: 'Hubo un error al crear la reserva'
@@ -127,4 +127,17 @@ const reservarEspacio = async (datosReserva) => {
   }
 };
 
-module.exports = { fetchReservations, fetchAvailability, reservarEspacio };
+const buscaReserva = async (datos) => {
+  if (!userId) {
+    return [];
+  }
+  try {
+    const hasActive = await sql`SELECT EXISTS (SELECT 1 FROM "Reserva" WHERE id_usuario = ${datos.user_id} AND BETWEEN ${datos.today} AND ${datos.rango} AND estado_reserva IN ('ACTIVO', 'PENDIENTE'));`;
+    return hasActive[0].exists;
+  } catch (error) {
+    console.error('Ocurrio un error al buscar reservas pendientes o activas');
+    throw error;
+  }
+}
+
+module.exports = { fetchReservations, fetchAvailability, reservarEspacio, buscaReserva };

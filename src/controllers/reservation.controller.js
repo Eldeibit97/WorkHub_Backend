@@ -124,6 +124,17 @@ const createReserva = async (req, res) => {
   }
 };
 
+const tieneReserva = async (req, res) => {
+  try{
+    const data = req.body;
+    const pendiente = await reservationService.buscaReserva(data);
+    res.status(200).json({pendiente: pendiente});
+  }catch{
+    console.error('Error al buscar si existe una reserva activa');
+    res.status(400).json({error: 'Error al buscar si existe una reserva'});
+  }
+}
+
 //Check-in reserva logica
 const checkInReserva = async (req, res) => {
   try {
@@ -244,4 +255,4 @@ const checkOutReserva = async (req, res) => {
   }
 };
 
-module.exports = { getReservations, getUsers, getReservas, getReservaByID, updateReserva, checkAvailability, checkInReserva, createReserva, checkOutReserva };
+module.exports = { getReservations, getUsers, getReservas, getReservaByID, updateReserva, checkAvailability, checkInReserva, createReserva, checkOutReserva, tieneReserva };
