@@ -1,0 +1,11 @@
+'use strict';
+
+const RESERVATION_STATUS = {
+  PENDIENTE:  'PENDIENTE',
+  ACTIVO:     'ACTIVO',
+  CHECKED_IN: 'CHECKED_IN',
+  COMPLETADO: 'COMPLETADO',
+  CANCELADO:  'CANCELADO',
+};
+
+module.exports = { RESERVATION_STATUS };

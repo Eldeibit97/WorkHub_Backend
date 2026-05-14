@@ -1,45 +1,204 @@
 const { sql } = require('../config/db');
 const modeloUsuario = require('../models/modeloUsuario');
 const modeloReserva = require('../models/modeloReserva');
+const { RESERVATION_STATUS } = require('../constants/reservationStatus');
 const { normalizeTimeLabel, intervalsOverlap, toMinutes } = require('../utils/timeRange');
 const spacesService = require('./spaces.service');
 
 const fetchReservations = async (userId, status) => {
   try {
-    const statusFilter = status ?? null;
+    let result;
 
-    const result = await sql`
-      SELECT 
-        r.id_reserva,
-        r.fecha_reserva,
-        r.hora_inicio,
-        r.hora_fin,
-        r.estado_reserva,
-        r.tipo_reserva,
+    if (status) {
+      result = await sql`
+        SELECT 
+          r.id_reserva,
+          r.fecha_reserva,
+          r.hora_inicio,
+          r.hora_fin,
+          r.estado_reserva,
+          r.tipo_reserva,
 
-        e.nombre_espacio,
-        e.codigo_espacio,
+          e.nombre_espacio,
+          e.codigo_espacio,
 
-        z.nombre_zona,
-        z.edificio,
+          z.nombre_zona,
+          z.edificio,
 
-        t.nombre_tipo
+          t.nombre_tipo
 
-      FROM "Reserva" r
-      JOIN "Espacio" e ON r.id_espacio = e.id_espacio
-      JOIN "Zona" z ON e.id_zona = z.id_zona
-      JOIN "Tipo_Espacio" t ON e.id_tipo_espacio = t.id_tipo_espacio
+        FROM "Reserva" r
+        JOIN "Espacio" e ON r.id_espacio = e.id_espacio
+        JOIN "Zona" z ON e.id_zona = z.id_zona
+        JOIN "Tipo_Espacio" t ON e.id_tipo_espacio = t.id_tipo_espacio
 
-      WHERE r.id_usuario = ${userId}
-        AND (${statusFilter}::text IS NULL OR r.estado_reserva = ${statusFilter})
+        WHERE r.id_usuario = ${userId}
+        AND r.estado_reserva = ${status}
 
-      ORDER BY r.fecha_creacion DESC
-    `;
+        ORDER BY r.fecha_creacion DESC
+      `;
+    } else {
+      result = await sql`
+        SELECT 
+          r.id_reserva,
+          r.fecha_reserva,
+          r.hora_inicio,
+          r.hora_fin,
+          r.estado_reserva,
+          r.tipo_reserva,
+
+          e.nombre_espacio,
+          e.codigo_espacio,
+
+          z.nombre_zona,
+          z.edificio,
+
+          t.nombre_tipo
+
+        FROM "Reserva" r
+        JOIN "Espacio" e ON r.id_espacio = e.id_espacio
+        JOIN "Zona" z ON e.id_zona = z.id_zona
+        JOIN "Tipo_Espacio" t ON e.id_tipo_espacio = t.id_tipo_espacio
+
+        WHERE r.id_usuario = ${userId}
+
+        ORDER BY r.fecha_creacion DESC
+      `;
+    }
 
     return result;
 
   } catch (error) {
     console.error("DB ERROR:", error);
+    throw error;
+  }
+};
+
+const fetchAllReservas = async () => {
+  try {
+    const result = await sql`SELECT * FROM "Reserva"`;
+    return result;
+  } catch (error) {
+    console.error('DB ERROR en fetchAllReservas:', error);
+    throw error;
+  }
+};
+
+const updateReserva = async ({ id_reserva, id_espacio, fecha_reserva, hora_inicio, hora_fin, estado_reserva, fecha_creacion, tipo_reserva }) => {
+  // 1. Verificar que la reserva existe
+  const reserva = await modeloReserva.encontrarPorId(id_reserva);
+  if (!reserva || reserva.length === 0) {
+    return { ok: false, status: 404, message: 'Reserva no encontrada' };
+  }
+
+  // 2. Ejecutar el UPDATE
+  try {
+    await sql`
+      UPDATE "Reserva"
+      SET
+        id_espacio     = ${id_espacio},
+        fecha_reserva  = ${fecha_reserva},
+        hora_inicio    = ${hora_inicio},
+        hora_fin       = ${hora_fin},
+        estado_reserva = ${estado_reserva},
+        fecha_creacion = ${fecha_creacion},
+        tipo_reserva   = ${tipo_reserva}
+      WHERE id_reserva = ${id_reserva}
+      RETURNING *
+    `;
+    return { ok: true, status: 200, message: 'Reserva actualizada exitosamente' };
+  } catch (error) {
+    console.error('DB ERROR en updateReserva:', error);
+    throw error;
+  }
+};
+
+const performCheckIn = async (id_reserva) => {
+  // 1. Buscar reserva
+  const reserva = await modeloReserva.encontrarPorId(id_reserva);
+  if (!reserva || reserva.length === 0) {
+    return { ok: false, status: 404, message: 'Reserva no encontrada' };
+  }
+
+  const r = reserva[0];
+
+  // 2. Validar estado
+  if (r.estado_reserva === RESERVATION_STATUS.CHECKED_IN) {
+    return { ok: false, status: 400, message: 'Ya se hizo check-in en esta reserva' };
+  }
+  if (r.estado_reserva !== RESERVATION_STATUS.ACTIVO) {
+    return { ok: false, status: 400, message: 'La reserva no está activa' };
+  }
+
+  // 3. Validar ventana de tiempo (15 min antes – 30 min después de hora_inicio)
+  const ahora        = new Date();
+  const fechaReserva = new Date(r.fecha_reserva);
+  const [hora, minutos, segundos] = r.hora_inicio.split(':');
+  fechaReserva.setHours(parseInt(hora), parseInt(minutos), parseInt(segundos || 0));
+
+  const MINUTOS_ANTES  = 15 * 60 * 1000;
+  const MINUTOS_DESPUES = 30 * 60 * 1000;
+  const inicioVentana  = new Date(fechaReserva.getTime() - MINUTOS_ANTES);
+  const finVentana     = new Date(fechaReserva.getTime() + MINUTOS_DESPUES);
+
+  if (ahora < inicioVentana || ahora > finVentana) {
+    return { ok: false, status: 400, message: 'Fuera de la ventana permitida para check-in' };
+  }
+
+  // 4. Actualizar estado
+  try {
+    await sql`
+      UPDATE "Reserva"
+      SET
+        estado_reserva = ${RESERVATION_STATUS.CHECKED_IN},
+        check_in       = NOW(),
+        fecha_edicion  = NOW()
+      WHERE id_reserva = ${id_reserva}
+    `;
+    return { ok: true, status: 200, message: 'Check-in realizado correctamente' };
+  } catch (error) {
+    console.error('DB ERROR en performCheckIn:', error);
+    throw error;
+  }
+};
+
+const performCheckOut = async (id_reserva) => {
+  try {
+    // 1. Intentar UPDATE directo (solo si está en CHECKED_IN)
+    const result = await sql`
+      UPDATE "Reserva"
+      SET
+        estado_reserva = ${RESERVATION_STATUS.COMPLETADO},
+        check_out      = CURRENT_TIMESTAMP,
+        fecha_edicion  = CURRENT_TIMESTAMP
+      WHERE id_reserva  = ${id_reserva}
+        AND estado_reserva = ${RESERVATION_STATUS.CHECKED_IN}
+      RETURNING *
+    `;
+
+    if (result && result.length > 0) {
+      return { ok: true, status: 200, message: 'Check-out realizado correctamente', data: result[0] };
+    }
+
+    // 2. El UPDATE no afectó filas: diagnosticar por qué
+    const reservaCheck = await modeloReserva.encontrarPorId(id_reserva);
+    if (!reservaCheck || reservaCheck.length === 0) {
+      return { ok: false, status: 404, message: 'Reserva no encontrada' };
+    }
+
+    const estadoActual = reservaCheck[0].estado_reserva;
+
+    if (estadoActual === RESERVATION_STATUS.COMPLETADO) {
+      return { ok: false, status: 400, message: 'El check-out ya fue realizado previamente' };
+    }
+    if (estadoActual === RESERVATION_STATUS.ACTIVO) {
+      return { ok: false, status: 400, message: 'No puedes hacer check-out porque aún no has hecho check-in' };
+    }
+
+    return { ok: false, status: 400, message: `No se puede hacer check-out desde el estado: ${estadoActual}` };
+
+  } catch (error) {
+    console.error('DB ERROR en performCheckOut:', error);
     throw error;
   }
 };
@@ -282,5 +441,9 @@ module.exports = {
   fetchAvailability,
   reservarEspacio,
   createReservationsBatch,
-  fetchAvailabilityWindow: spacesService.fetchAvailabilityWindow
+  fetchAvailabilityWindow: spacesService.fetchAvailabilityWindow,
+  fetchAllReservas,
+  updateReserva,
+  performCheckIn,
+  performCheckOut,
 };
