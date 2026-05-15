@@ -1,13 +1,23 @@
 const jwt = require('jsonwebtoken');
 
 /**
- * Verifica el JWT y adjunta req.user = { sub, correo, rol }
- * Úsalo en cualquier ruta que requiera sesión iniciada.
+ * Prioridad: 1) cookie de sesión (express-session). 2) Authorization Bearer (migración JWT).
+ * Tras login con éxito, req.session contiene userId, correo, rol.
  */
 function authenticate(req, res, next) {
+  const userId = req.session?.userId;
+  if (userId != null && Number.isFinite(Number(userId))) {
+    req.user = {
+      sub: Number(userId),
+      correo: req.session.correo,
+      rol: req.session.rol,
+    };
+    return next();
+  }
+
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Token requerido' });
+    return res.status(401).json({ message: 'Sesión o token requerido' });
   }
 
   const token = auth.slice(7).trim();
@@ -17,7 +27,7 @@ function authenticate(req, res, next) {
     req.user = {
       sub: payload.sub,
       correo: payload.correo,
-      rol: payload.rol,       // 'employee' | 'admin'
+      rol: payload.rol,
     };
     next();
   } catch {
@@ -28,10 +38,6 @@ function authenticate(req, res, next) {
 /**
  * Restringe el acceso a uno o más roles.
  * Siempre debe ir DESPUÉS de authenticate.
- *
- * Ejemplo de uso:
- *   router.get('/dashboard', authenticate, authorize('admin'), controller)
- *   router.get('/reservas',  authenticate, authorize('admin', 'employee'), controller)
  */
 function authorize(...roles) {
   return (req, res, next) => {

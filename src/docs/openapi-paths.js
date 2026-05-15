@@ -29,7 +29,7 @@
  *                 format: password
  *     responses:
  *       200:
- *         description: JWT y datos públicos del usuario
+ *         description: JWT (migración), usuario y cookie de sesión workhub.sid (usar fetch con credentials en el cliente)
  *         content:
  *           application/json:
  *             schema:
@@ -55,11 +55,56 @@
  *       403:
  *         description: Cuenta sin contraseña asignada
  *
+ * /api/auth/logout:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Cerrar sesión
+ *     description: Destruye la sesión en la base de datos y elimina la cookie workhub.sid. El cliente debe enviar cookies (credentials include). No requiere body.
+ *     responses:
+ *       204:
+ *         description: Sesión cerrada
+ *       500:
+ *         description: Error al cerrar sesión
+ *
+ * /api/auth/me:
+ *   get:
+ *     tags: [Auth]
+ *     summary: Usuario de la sesión actual
+ *     description: Válido con cookie workhub.sid (credentials include) o Authorization Bearer. Útil para hidratar el estado en pestañas nuevas (sessionStorage no se comparte entre pestañas).
+ *     security:
+ *       - bearerAuth: []
+ *       - sessionCookie: []
+ *     responses:
+ *       200:
+ *         description: Mismo shape que user en POST /api/auth/login
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id_usuario:
+ *                       type: integer
+ *                     nombre:
+ *                       type: string
+ *                     apellido:
+ *                       type: string
+ *                     correo_institucional:
+ *                       type: string
+ *                     rol:
+ *                       type: string
+ *       401:
+ *         description: Sin sesión o token válido, o usuario inexistente
+ *       500:
+ *         description: Error del servidor
+ *
  * /api/admin/assign-password:
  *   post:
  *     tags: [Admin]
  *     summary: Asignar contraseña a un usuario existente
- *     description: El correo del JWT debe estar en ADMIN_EMAILS del servidor.
+ *     description: El usuario autenticado (cookie de sesión o JWT) debe estar en ADMIN_EMAILS del servidor.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
