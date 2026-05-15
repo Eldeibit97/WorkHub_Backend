@@ -237,7 +237,6 @@ const fetchAvailability = async (date, id_zona) => {
         e.nombre_espacio,
         te.nombre_tipo AS tipo,
         z.nombre_zona,
-        -- Esta columna es clave: nos dice si ya hay una reserva para esa fecha
         EXISTS (
           SELECT 1 
           FROM public."Reserva" r
@@ -247,9 +246,9 @@ const fetchAvailability = async (date, id_zona) => {
         ) AS ocupado
       FROM public."Espacio" e
       JOIN public."Tipo_Espacio" te ON e.id_tipo_espacio = te.id_tipo_espacio
-      JOIN public."Zona" z          ON e.id_zona         = z.id_zona
+      JOIN public."Zona" z ON e.id_zona = z.id_zona
       WHERE e.activo = true
-        AND e.id_zona = ${id_zona} -- Solo traemos el piso seleccionado
+        AND e.id_zona = ${id_zona}
       ORDER BY e.codigo_espacio ASC;
     `;
 
