@@ -189,6 +189,18 @@ const createReserva = async (req, res) => {
   }
 };
 
+// ─── POST /reservas/verifica reserva activa ───────────────────────────────────────────────────
+const tieneReserva = async (req, res) => {
+  try{
+    const data = req.body;
+    const pendiente = await reservationService.buscaReserva(data);
+    res.status(200).json({pendiente: pendiente});
+  }catch{
+    console.error('Error al buscar si existe una reserva activa');
+    res.status(400).json({error: 'Error al buscar si existe una reserva'});
+  }
+}
+
 // ─── PUT /reservas/check-in ───────────────────────────────────────────────────
 const checkInReserva = async (req, res) => {
   try {
@@ -247,3 +259,4 @@ module.exports = {
   checkOutReserva,
   batchCreateReservas,
 };
+module.exports = { getReservations, getUsers, getReservas, getReservaByID, updateReserva, checkAvailability, checkInReserva, createReserva, checkOutReserva, tieneReserva };
