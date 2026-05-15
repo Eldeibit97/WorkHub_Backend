@@ -258,5 +258,5 @@ module.exports = {
   checkInReserva,
   checkOutReserva,
   batchCreateReservas,
+  tieneReserva, 
 };
-module.exports = { getReservations, getUsers, getReservas, getReservaByID, updateReserva, checkAvailability, checkInReserva, createReserva, checkOutReserva, tieneReserva };
