@@ -155,9 +155,39 @@ const batchCreateReservas = async (req, res) => {
   try {
     const { reservas } = req.body || {};
     const result = await createReservationsBatch(req.user.sub, reservas);
+    
     if (!result.ok) {
       return res.status(result.status).json({ message: result.message });
     }
+
+    // ✅ EMITIR EVENTO WEBSOCKET AQUÍ
+    try {
+      const io = req.app.get('io');
+      if (io && result.ids.length > 0) {
+        const { sql } = require('../config/db.js');
+        
+        // Obtener las zonas de los espacios creados
+        const createdReservas = await sql`
+          SELECT DISTINCT e.id_zona 
+          FROM "Reserva" r
+          JOIN "Espacio" e ON r.id_espacio = e.id_espacio
+          WHERE r.id_reserva = ANY(${result.ids})
+        `;
+        
+        // Emitir evento a cada zona afectada
+        for (const zona of createdReservas) {
+          io.to(`zona-${zona.id_zona}`).emit('availability:changed', {
+            zonaId: zona.id_zona,
+            timestamp: new Date().toISOString(),
+            type: 'reservation_created'
+          });
+        }
+        console.log(`[WebSocket] Emitido availability:changed para ${createdReservas.length} zona(s)`);
+      }
+    } catch (wsError) {
+      console.warn('[WebSocket] Error emitiendo evento (pero reservas se crearon):', wsError);
+    }
+
     return res.status(201).json({
       creadas: result.ids.length,
       ids: result.ids,
