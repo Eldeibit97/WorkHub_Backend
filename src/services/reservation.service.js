@@ -469,18 +469,6 @@ async function createReservationsBatch(idUsuario, items) {
   }
 }
 
-module.exports = {
-  fetchReservations,
-  fetchAvailability,
-  reservarEspacio,
-  createReservationsBatch,
-  fetchAvailabilityWindow: spacesService.fetchAvailabilityWindow,
-  fetchAllReservas,
-  updateReserva,
-  performCheckIn,
-  performCheckOut,
-};
-
 const buscaReserva = async (datos) => {
   try {
     const hasActive = await sql`SELECT EXISTS (SELECT 1 FROM "Reserva" WHERE id_usuario = ${datos.user_id} AND "fecha_reserva" BETWEEN ${datos.today} AND ${datos.rango} AND estado_reserva IN ('ACTIVO', 'PENDIENTE'));`;
@@ -491,4 +479,15 @@ const buscaReserva = async (datos) => {
   }
 }
 
-module.exports = { fetchReservations, fetchAvailability, reservarEspacio, buscaReserva };
+module.exports = {
+  fetchReservations,
+  fetchAvailability,
+  reservarEspacio,
+  createReservationsBatch,
+  fetchAvailabilityWindow: spacesService.fetchAvailabilityWindow,
+  fetchAllReservas,
+  updateReserva,
+  performCheckIn,
+  performCheckOut,
+  buscaReserva
+};
