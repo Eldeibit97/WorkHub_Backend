@@ -1,7 +1,9 @@
 const { sql } = require('../config/db');
-const modeloUsuario = require('../models/modeloUsuario')
+const modeloUsuario = require('../models/modeloUsuario');
 const modeloReserva = require('../models/modeloReserva');
-const { response } = require('express');
+const { RESERVATION_STATUS } = require('../constants/reservationStatus');
+const { normalizeTimeLabel, intervalsOverlap, toMinutes } = require('../utils/timeRange');
+const spacesService = require('./spaces.service');
 
 const fetchReservations = async (userId, status) => {
   try {
@@ -72,6 +74,136 @@ const fetchReservations = async (userId, status) => {
   }
 };
 
+
+const fetchAllReservas = async () => {
+  try {
+    const result = await sql`SELECT * FROM "Reserva"`;
+    return result;
+  } catch (error) {
+    console.error('DB ERROR en fetchAllReservas:', error);
+    throw error;
+  }
+};
+
+const updateReserva = async ({ id_reserva, id_espacio, fecha_reserva, hora_inicio, hora_fin, estado_reserva, fecha_creacion, tipo_reserva }) => {
+  // 1. Verificar que la reserva existe
+  const reserva = await modeloReserva.encontrarPorId(id_reserva);
+  if (!reserva || reserva.length === 0) {
+    return { ok: false, status: 404, message: 'Reserva no encontrada' };
+  }
+
+  // 2. Ejecutar el UPDATE
+  try {
+    await sql`
+      UPDATE "Reserva"
+      SET
+        id_espacio     = ${id_espacio},
+        fecha_reserva  = ${fecha_reserva},
+        hora_inicio    = ${hora_inicio},
+        hora_fin       = ${hora_fin},
+        estado_reserva = ${estado_reserva},
+        fecha_creacion = ${fecha_creacion},
+        tipo_reserva   = ${tipo_reserva}
+      WHERE id_reserva = ${id_reserva}
+      RETURNING *
+    `;
+    return { ok: true, status: 200, message: 'Reserva actualizada exitosamente' };
+  } catch (error) {
+    console.error('DB ERROR en updateReserva:', error);
+    throw error;
+  }
+};
+
+const performCheckIn = async (id_reserva) => {
+  // 1. Buscar reserva
+  const reserva = await modeloReserva.encontrarPorId(id_reserva);
+  if (!reserva || reserva.length === 0) {
+    return { ok: false, status: 404, message: 'Reserva no encontrada' };
+  }
+
+  const r = reserva[0];
+
+  // 2. Validar estado
+  if (r.estado_reserva === RESERVATION_STATUS.CHECKED_IN) {
+    return { ok: false, status: 400, message: 'Ya se hizo check-in en esta reserva' };
+  }
+  if (r.estado_reserva !== RESERVATION_STATUS.ACTIVO) {
+    return { ok: false, status: 400, message: 'La reserva no está activa' };
+  }
+
+  // 3. Validar ventana de tiempo (15 min antes – 30 min después de hora_inicio)
+  const ahora        = new Date();
+  const fechaReserva = new Date(r.fecha_reserva);
+  const [hora, minutos, segundos] = r.hora_inicio.split(':');
+  fechaReserva.setHours(parseInt(hora), parseInt(minutos), parseInt(segundos || 0));
+
+  const MINUTOS_ANTES  = 15 * 60 * 1000;
+  const MINUTOS_DESPUES = 30 * 60 * 1000;
+  const inicioVentana  = new Date(fechaReserva.getTime() - MINUTOS_ANTES);
+  const finVentana     = new Date(fechaReserva.getTime() + MINUTOS_DESPUES);
+
+  if (ahora < inicioVentana || ahora > finVentana) {
+    return { ok: false, status: 400, message: 'Fuera de la ventana permitida para check-in' };
+  }
+
+  // 4. Actualizar estado
+  try {
+    await sql`
+      UPDATE "Reserva"
+      SET
+        estado_reserva = ${RESERVATION_STATUS.CHECKED_IN},
+        check_in       = NOW(),
+        fecha_edicion  = NOW()
+      WHERE id_reserva = ${id_reserva}
+    `;
+    return { ok: true, status: 200, message: 'Check-in realizado correctamente' };
+  } catch (error) {
+    console.error('DB ERROR en performCheckIn:', error);
+    throw error;
+  }
+};
+
+const performCheckOut = async (id_reserva) => {
+  try {
+    // 1. Intentar UPDATE directo (solo si está en CHECKED_IN)
+    const result = await sql`
+      UPDATE "Reserva"
+      SET
+        estado_reserva = ${RESERVATION_STATUS.COMPLETADO},
+        check_out      = CURRENT_TIMESTAMP,
+        fecha_edicion  = CURRENT_TIMESTAMP
+      WHERE id_reserva  = ${id_reserva}
+        AND estado_reserva = ${RESERVATION_STATUS.CHECKED_IN}
+      RETURNING *
+    `;
+
+    if (result && result.length > 0) {
+      return { ok: true, status: 200, message: 'Check-out realizado correctamente', data: result[0] };
+    }
+
+    // 2. El UPDATE no afectó filas: diagnosticar por qué
+    const reservaCheck = await modeloReserva.encontrarPorId(id_reserva);
+    if (!reservaCheck || reservaCheck.length === 0) {
+      return { ok: false, status: 404, message: 'Reserva no encontrada' };
+    }
+
+    const estadoActual = reservaCheck[0].estado_reserva;
+
+    if (estadoActual === RESERVATION_STATUS.COMPLETADO) {
+      return { ok: false, status: 400, message: 'El check-out ya fue realizado previamente' };
+    }
+    if (estadoActual === RESERVATION_STATUS.ACTIVO) {
+      return { ok: false, status: 400, message: 'No puedes hacer check-out porque aún no has hecho check-in' };
+    }
+
+    return { ok: false, status: 400, message: `No se puede hacer check-out desde el estado: ${estadoActual}` };
+
+  } catch (error) {
+    console.error('DB ERROR en performCheckOut:', error);
+    throw error;
+  }
+};
+
 const fetchAvailability = async (date, id_zona) => {
   try {
     const result = await sql`
@@ -110,7 +242,7 @@ const reservarEspacio = async (datosReserva) => {
     return {
       status: 400,
       message: 'El correo con el que se intenta reservar no esta registrado en la plataforma'
-    }
+    };
   }
   const datosCorrectos = { ...datosReserva, idUsuario: usuario.id_usuario };
   const respuesta = await modeloReserva.crearReserva(datosCorrectos);
@@ -119,12 +251,202 @@ const reservarEspacio = async (datosReserva) => {
       status: 200,
       message: 'La reserva se creo de manera correcta'
     };
-  } else {
-    return {
-      status: 400,
-      message: 'Hubo un error al crear la reserva'
-    };
   }
+  return {
+    status: 400,
+    message: 'Hubo un error al crear la reserva'
+  };
+};
+
+async function hasConflictingReservation(idEspacio, fecha, horaInicio, horaFin) {
+  const hi = normalizeTimeLabel(horaInicio);
+  const hf = normalizeTimeLabel(horaFin);
+  const rows = await sql`
+    SELECT 1
+      FROM public."Reserva" r
+     WHERE r.id_espacio = ${idEspacio}
+       AND DATE(r.fecha_reserva) = ${fecha}::date
+       AND r.estado_reserva IN ('PENDIENTE', 'ACTIVO', 'CHECKED_IN')
+       AND r.hora_inicio::time < ${hf}::time
+       AND r.hora_fin::time > ${hi}::time
+     LIMIT 1
+  `;
+  return rows.length > 0;
+}
+
+function validateBatchNoInternalOverlap(normalizedItems) {
+  const byKey = new Map();
+  for (const it of normalizedItems) {
+    const key = `${it.idEspacio}|${it.fechaReserva}`;
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(it);
+  }
+  for (const list of byKey.values()) {
+    for (let i = 0; i < list.length; i += 1) {
+      for (let j = i + 1; j < list.length; j += 1) {
+        if (
+          intervalsOverlap(
+            list[i].horaInicio,
+            list[i].horaSalida,
+            list[j].horaInicio,
+            list[j].horaSalida
+          )
+        ) {
+          return {
+            ok: false,
+            message: 'Hay reservas solapadas en el mismo espacio y fecha en el lote'
+          };
+        }
+      }
+    }
+  }
+  return { ok: true };
+}
+
+function collectReturningIds(transactionResults) {
+  const ids = [];
+  for (const r of transactionResults) {
+    if (Array.isArray(r) && r[0]?.id_reserva != null) {
+      ids.push(r[0].id_reserva);
+    } else if (r?.rows?.[0]?.id_reserva != null) {
+      ids.push(r.rows[0].id_reserva);
+    } else if (r?.id_reserva != null) {
+      ids.push(r.id_reserva);
+    }
+  }
+  return ids;
+}
+
+/**
+ * Crear varias reservas en una transacción (usuario tomado del JWT).
+ */
+async function createReservationsBatch(idUsuario, items) {
+  if (idUsuario == null || Number.isNaN(Number(idUsuario))) {
+    return { ok: false, status: 401, message: 'Usuario no válido en token' };
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return { ok: false, status: 400, message: 'reservas debe ser un array no vacío' };
+  }
+
+  const normalized = [];
+  for (const raw of items) {
+    const idEspacio = parseInt(raw.idEspacio ?? raw.id_espacio, 10);
+    const fechaReserva = raw.fechaReserva ?? raw.fecha_reserva;
+    const horaInicio = normalizeTimeLabel(raw.horaInicio ?? raw.hora_inicio);
+    const horaSalida = normalizeTimeLabel(
+      raw.horaSalida ?? raw.hora_salida ?? raw.hora_fin
+    );
+    const tipoReserva = raw.tipoReserva ?? raw.tipo_reserva ?? 'INDIVIDUAL';
+
+    if (!Number.isFinite(idEspacio) || !fechaReserva || !horaInicio || !horaSalida) {
+      return {
+        ok: false,
+        status: 400,
+        message:
+          'Cada reserva requiere idEspacio, fechaReserva (YYYY-MM-DD), horaInicio y horaSalida (HH:mm)'
+      };
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fechaReserva))) {
+      return { ok: false, status: 400, message: 'fechaReserva debe ser YYYY-MM-DD' };
+    }
+    if (toMinutes(horaInicio) >= toMinutes(horaSalida)) {
+      return {
+        ok: false,
+        status: 400,
+        message: 'horaInicio debe ser anterior a horaSalida en cada reserva'
+      };
+    }
+    normalized.push({
+      idEspacio,
+      fechaReserva: String(fechaReserva),
+      horaInicio,
+      horaSalida,
+      tipoReserva: String(tipoReserva)
+    });
+  }
+
+  const internal = validateBatchNoInternalOverlap(normalized);
+  if (!internal.ok) {
+    return { ok: false, status: 400, message: internal.message };
+  }
+
+  const uniqueSpaces = [...new Set(normalized.map((x) => x.idEspacio))];
+  for (const id of uniqueSpaces) {
+    const sp = await sql`
+      SELECT id_espacio
+        FROM public."Espacio"
+       WHERE id_espacio = ${id}
+         AND activo = true
+       LIMIT 1
+    `;
+    if (!sp.length) {
+      return {
+        ok: false,
+        status: 400,
+        message: `Espacio ${id} no existe o está inactivo`
+      };
+    }
+  }
+
+  for (const it of normalized) {
+    const conflict = await hasConflictingReservation(
+      it.idEspacio,
+      it.fechaReserva,
+      it.horaInicio,
+      it.horaSalida
+    );
+    if (conflict) {
+      return {
+        ok: false,
+        status: 409,
+        message: `Conflicto de horario en espacio ${it.idEspacio} el ${it.fechaReserva}`
+      };
+    }
+  }
+
+  const uid = Number(idUsuario);
+  const stmts = normalized.map(
+    (it) => sql`
+    INSERT INTO public."Reserva" (
+      id_usuario, id_espacio, fecha_reserva, hora_inicio, hora_fin,
+      estado_reserva, fecha_creacion, tipo_reserva
+    ) VALUES (
+      ${uid},
+      ${it.idEspacio},
+      ${it.fechaReserva}::date,
+      ${it.horaInicio},
+      ${it.horaSalida},
+      'PENDIENTE',
+      NOW(),
+      ${it.tipoReserva}
+    )
+    RETURNING id_reserva
+  `
+  );
+
+  try {
+    const results = await sql.transaction(stmts);
+    const ids = collectReturningIds(results);
+    if (ids.length !== normalized.length) {
+      return { ok: false, status: 500, message: 'No se pudieron obtener todos los id de reserva' };
+    }
+    return { ok: true, status: 201, ids };
+  } catch (error) {
+    console.error('createReservationsBatch', error);
+    return { ok: false, status: 500, message: 'Error al guardar las reservas' };
+  }
+}
+
+module.exports = {
+  fetchReservations,
+  fetchAvailability,
+  reservarEspacio,
+  createReservationsBatch,
+  fetchAvailabilityWindow: spacesService.fetchAvailabilityWindow,
+  fetchAllReservas,
+  updateReserva,
+  performCheckIn,
+  performCheckOut,
 };
 
 const buscaReserva = async (datos) => {
