@@ -4,6 +4,30 @@ const modeloReserva = require('../models/modeloReserva');
 const { normalizeTimeLabel, intervalsOverlap, toMinutes } = require('../utils/timeRange');
 const spacesService = require('./spaces.service');
 
+/** YYYY-MM-DD, primeros 10 de ISO, o Date local (sin horas raras en string arbitrario). */
+function normalizeFechaReserva(v) {
+  if (v == null) return '';
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    const y = v.getFullYear();
+    const m = String(v.getMonth() + 1).padStart(2, '0');
+    const d = String(v.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const head = s.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(head)) return head;
+  return '';
+}
+
+/** Límite PostgreSQL `integer` (int4); ids de tablas y FK deben caber aquí. */
+const MAX_PG_INT = 2147483647;
+
+function isValidPgInt32(n) {
+  const x = Number(n);
+  return Number.isFinite(x) && Number.isInteger(x) && x > 0 && x <= MAX_PG_INT;
+}
+
 const fetchReservations = async (userId, status) => {
   try {
     let result;
@@ -190,7 +214,8 @@ function collectReturningIds(transactionResults) {
  * Crear varias reservas en una transacción (usuario tomado del JWT).
  */
 async function createReservationsBatch(idUsuario, items) {
-  if (idUsuario == null || Number.isNaN(Number(idUsuario))) {
+  const uidNum = Number(idUsuario);
+  if (!isValidPgInt32(uidNum)) {
     return { ok: false, status: 401, message: 'Usuario no válido en token' };
   }
   if (!Array.isArray(items) || items.length === 0) {
@@ -199,20 +224,27 @@ async function createReservationsBatch(idUsuario, items) {
 
   const normalized = [];
   for (const raw of items) {
-    const idEspacio = parseInt(raw.idEspacio ?? raw.id_espacio, 10);
-    const fechaReserva = raw.fechaReserva ?? raw.fecha_reserva;
-    const horaInicio = normalizeTimeLabel(raw.horaInicio ?? raw.hora_inicio);
+    const idEspacio = parseInt(
+      raw.idEspacio ?? raw.id_espacio ?? raw.spaceId ?? raw.espacioId,
+      10
+    );
+    const fechaReserva = normalizeFechaReserva(
+      raw.fechaReserva ?? raw.fecha_reserva ?? raw.fecha ?? raw.date
+    );
+    const horaInicio = normalizeTimeLabel(
+      raw.horaInicio ?? raw.hora_inicio ?? raw.startTime
+    );
     const horaSalida = normalizeTimeLabel(
-      raw.horaSalida ?? raw.hora_salida ?? raw.hora_fin
+      raw.horaSalida ?? raw.hora_salida ?? raw.hora_fin ?? raw.horaFin ?? raw.endTime
     );
     const tipoReserva = raw.tipoReserva ?? raw.tipo_reserva ?? 'INDIVIDUAL';
 
-    if (!Number.isFinite(idEspacio) || !fechaReserva || !horaInicio || !horaSalida) {
+    if (!isValidPgInt32(idEspacio) || !fechaReserva || !horaInicio || !horaSalida) {
       return {
         ok: false,
         status: 400,
         message:
-          'Cada reserva requiere idEspacio, fechaReserva (YYYY-MM-DD), horaInicio y horaSalida (HH:mm)'
+          'Cada reserva requiere idEspacio (id numérico del espacio en BD, no un timestamp), fechaReserva (YYYY-MM-DD), horaInicio y horaSalida (HH:mm)'
       };
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fechaReserva))) {
@@ -273,7 +305,7 @@ async function createReservationsBatch(idUsuario, items) {
     }
   }
 
-  const uid = Number(idUsuario);
+  const uid = uidNum;
   const stmts = normalized.map(
     (it) => sql`
     INSERT INTO public."Reserva" (
