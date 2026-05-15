@@ -37,20 +37,6 @@ class ModeloReserva {
             return false;
         }
     };
-
-    static async verificarReservaActiva(id_usuario) {
-        if (!id_usuario) {
-            return [];
-        } else {
-            try {
-                const hasActive = await sql`SELECT EXISTS (SELECT 1 FROM "Reserva" WHERE id_usuario = ${id_usuario} AND estado_reserva IN ('ACTIVO', 'PENDIENTE'));`;
-                return hasActive[0].exists;
-            } catch (error) {
-                console.error('Ocurrio un error al buscar reservas pendientes o activas');
-                throw error;
-            }
-        }
-    }
 }
 
 module.exports = ModeloReserva;

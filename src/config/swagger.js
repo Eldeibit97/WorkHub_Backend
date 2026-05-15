@@ -16,7 +16,7 @@ const options = {
       },
     ],
     tags: [
-      { name: 'Auth', description: 'Login y JWT' },
+      { name: 'Auth', description: 'Login, sesión por cookie y JWT' },
       { name: 'Admin', description: 'Asignación de contraseñas (solo administradores)' },
       { name: 'Reservas', description: 'Reservas de oficina' },
       { name: 'Preferencias', description: 'Historial y preferencias inferidas del usuario' },
@@ -28,7 +28,14 @@ const options = {
           type: 'http',
           scheme: 'bearer',
           bearerFormat: 'JWT',
-          description: 'Token devuelto por POST /api/auth/login',
+          description:
+            'Token de POST /api/auth/login (migración). También se acepta cookie de sesión workhub.sid con credenciales.',
+        },
+        sessionCookie: {
+          type: 'apiKey',
+          in: 'cookie',
+          name: 'workhub.sid',
+          description: 'Sesión establecida por POST /api/auth/login con credentials: include en el cliente.',
         },
       },
     },
