@@ -20,7 +20,14 @@ function parseZonaId(raw) {
 
 async function listZonas() {
   const rows = await sql`
-    SELECT z.id_zona, z.nombre_zona, z.edificio, z.descripcion
+    SELECT
+      z.id_zona,
+      z.nombre_zona,
+      z.edificio,
+      z.descripcion,
+      z.codigo_zona,
+      z.view_box,
+      z.background
       FROM public."Zona" z
      ORDER BY z.edificio NULLS LAST, z.nombre_zona
   `;
@@ -29,8 +36,13 @@ async function listZonas() {
     nombreZona: z.nombre_zona,
     edificio: z.edificio,
     descripcion: z.descripcion,
+    codigoZona: z.codigo_zona,
+    viewBox: z.view_box,
+    background: z.background,
     id_zona: z.id_zona,
     nombre_zona: z.nombre_zona,
+    codigo_zona: z.codigo_zona,
+    view_box: z.view_box,
   }));
 }
 
@@ -44,6 +56,12 @@ async function listSpacesByZona(zonaId) {
       e.id_tipo_espacio,
       e.activo,
       e.estado_actual,
+      e.shape,
+      e.x,
+      e.y,
+      e.r,
+      e.w,
+      e.h,
       te.nombre_tipo,
       z.nombre_zona,
       z.edificio
@@ -66,11 +84,34 @@ async function listSpacesByZona(zonaId) {
     estadoActual: e.estado_actual,
     nombreZona: e.nombre_zona,
     edificio: e.edificio,
+    shape: e.shape,
+    x: e.x != null ? Number(e.x) : null,
+    y: e.y != null ? Number(e.y) : null,
+    r: e.r != null ? Number(e.r) : null,
+    w: e.w != null ? Number(e.w) : null,
+    h: e.h != null ? Number(e.h) : null,
     id_espacio: e.id_espacio,
     id_zona: e.id_zona,
     codigo_espacio: e.codigo_espacio,
     nombre_espacio: e.nombre_espacio,
     nombre_zona: e.nombre_zona,
+  }));
+}
+
+const ALLOWED_TIPO_ESPACIO_IDS = [1, 2, 5];
+
+async function listTiposEspacio() {
+  const rows = await sql`
+    SELECT id_tipo_espacio, nombre_tipo
+      FROM public."Tipo_Espacio"
+     WHERE id_tipo_espacio IN (1, 2, 5)
+     ORDER BY id_tipo_espacio ASC
+  `;
+  return rows.map((t) => ({
+    idTipoEspacio: t.id_tipo_espacio,
+    nombreTipo: t.nombre_tipo,
+    id_tipo_espacio: t.id_tipo_espacio,
+    nombre_tipo: t.nombre_tipo,
   }));
 }
 
@@ -170,7 +211,9 @@ async function buildScheduleBlocks(idEspacio, fecha) {
 module.exports = {
   listZonas,
   listSpacesByZona,
+  listTiposEspacio,
   fetchAvailabilityWindow,
   buildScheduleBlocks,
   parseZonaId,
+  ALLOWED_TIPO_ESPACIO_IDS,
 };

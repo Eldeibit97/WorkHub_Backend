@@ -1,6 +1,7 @@
 const express = require('express');
 const { requireAdmin } = require('../middleware/requireAdmin');
 const { assignPassword } = require('../controllers/admin.controller');
+const { putFloorLayout } = require('../controllers/floorLayout.controller');
 const {
   getRolesCatalog,
   listAdminUsers,
@@ -27,5 +28,7 @@ router.patch('/users/:id', requireAdmin, patchUserProfile);
 router.delete('/users/:id', requireAdmin, deleteAdminUser);
 
 router.post('/assign-password', requireAdmin, assignPassword);
+
+router.put('/zonas/:id/floor-layout', requireAdmin, putFloorLayout);
 
 module.exports = router;

@@ -1,10 +1,21 @@
 const spacesService = require('../services/spaces.service');
 const { sql } = require('../config/db.js');
+const { parsePgIntId } = require('../utils/pgInt');
 
 function isValidISODate(s) {
   if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
   const d = new Date(`${s}T12:00:00Z`);
   return !Number.isNaN(d.getTime());
+}
+
+async function getTiposEspacio(req, res) {
+  try {
+    const tipos = await spacesService.listTiposEspacio();
+    return res.status(200).json(tipos);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Error al listar tipos de espacio' });
+  }
 }
 
 async function getZonas(req, res) {
@@ -74,10 +85,10 @@ async function getSpacesAvailability(req, res) {
 
 async function getSpaceSchedule(req, res) {
   try {
-    const idEspacio = parseInt(String(req.params.idEspacio), 10);
+    const idEspacio = parsePgIntId(req.params.idEspacio);
     const fecha = req.query.fecha;
 
-    if (!Number.isFinite(idEspacio)) {
+    if (Number.isNaN(idEspacio)) {
       return res.status(400).json({ message: 'id de espacio inválido' });
     }
     if (!fecha || !isValidISODate(String(fecha))) {
@@ -100,6 +111,7 @@ async function getSpaceSchedule(req, res) {
 }
 
 module.exports = {
+  getTiposEspacio,
   getZonas,
   getSpaces,
   getSpacesAvailability,
