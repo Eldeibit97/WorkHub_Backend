@@ -208,13 +208,11 @@
  *         application/json:
  *           schema:
  *             type: object
- *             required: [id_reserva, id_usuario, id_espacio, fecha_reserva, hora_inicio, hora_fin, estado_reserva, fecha_creacion, tipo_reserva]
+ *             required: [id_reserva, id_usuario, fecha_reserva, hora_inicio, hora_fin, estado_reserva, tipo_reserva]
  *             properties:
  *               id_reserva:
  *                 type: integer
  *               id_usuario:
- *                 type: integer
- *               id_espacio:
  *                 type: integer
  *               fecha_reserva:
  *                 type: string
@@ -223,8 +221,6 @@
  *               hora_fin:
  *                 type: string
  *               estado_reserva:
- *                 type: string
- *               fecha_creacion:
  *                 type: string
  *               tipo_reserva:
  *                 type: string

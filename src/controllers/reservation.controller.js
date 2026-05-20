@@ -73,20 +73,20 @@ const getReservaByID = async (req, res) => {
 // ─── PUT /reservas/update ─────────────────────────────────────────────────────
 const updateReserva = async (req, res) => {
   const {
-    id_reserva, id_usuario, id_espacio, fecha_reserva,
-    hora_inicio, hora_fin, estado_reserva, fecha_creacion, tipo_reserva,
+    id_reserva, id_usuario, fecha_reserva,
+    hora_inicio, hora_fin, estado_reserva, tipo_reserva,
   } = req.body;
 
   // Validación de campos requeridos
-  if (!id_reserva || !id_usuario || !id_espacio || !fecha_reserva ||
-      !hora_inicio || !hora_fin || !estado_reserva || !fecha_creacion || !tipo_reserva) {
+  if (!id_reserva || !id_usuario || !fecha_reserva ||
+      !hora_inicio || !hora_fin || !estado_reserva || !tipo_reserva) {
     return res.status(400).json({ error: 'Datos incompletos para actualizar la reserva' });
   }
 
   try {
     const result = await reservationSvc.updateReserva({
-      id_reserva, id_espacio, fecha_reserva,
-      hora_inicio, hora_fin, estado_reserva, fecha_creacion, tipo_reserva,
+      id_reserva, fecha_reserva,
+      hora_inicio, hora_fin, estado_reserva, tipo_reserva,
     });
 
     if (!result.ok) {

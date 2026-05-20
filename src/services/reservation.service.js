@@ -109,7 +109,7 @@ const fetchAllReservas = async () => {
   }
 };
 
-const updateReserva = async ({ id_reserva, id_espacio, fecha_reserva, hora_inicio, hora_fin, estado_reserva, fecha_creacion, tipo_reserva }) => {
+const updateReserva = async ({ id_reserva, fecha_reserva, hora_inicio, hora_fin, estado_reserva, tipo_reserva }) => {
   // 1. Verificar que la reserva existe
   const reserva = await modeloReserva.encontrarPorId(id_reserva);
   if (!reserva || reserva.length === 0) {
@@ -121,12 +121,10 @@ const updateReserva = async ({ id_reserva, id_espacio, fecha_reserva, hora_inici
     await sql`
       UPDATE "Reserva"
       SET
-        id_espacio     = ${id_espacio},
         fecha_reserva  = ${fecha_reserva},
         hora_inicio    = ${hora_inicio},
         hora_fin       = ${hora_fin},
         estado_reserva = ${estado_reserva},
-        fecha_creacion = ${fecha_creacion},
         tipo_reserva   = ${tipo_reserva}
       WHERE id_reserva = ${id_reserva}
       RETURNING *
