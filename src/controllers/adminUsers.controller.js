@@ -1,6 +1,5 @@
 const adminUsersService = require('../services/adminUsers.service');
 const adminStatsService = require('../services/adminStats.service');
-const adminStatsService = require('../services/adminStats.service');
 
 function getRolesCatalog(req, res) {
   try {
