@@ -165,4 +165,50 @@ async function getAdminStats({ from, to }) {
   };
 }
 
-module.exports = { getAdminStats };
+async function getNoShowHeatmap({ from, to }) {
+  const window = resolveWindow(from, to);
+  if (!window.ok) return window;
+
+  // No-show: reserva PENDIENTE o ACTIVO cuya fecha ya pasó
+  const rows = await sql`
+    SELECT
+      EXTRACT(DOW  FROM fecha_reserva)::int  AS day,
+      EXTRACT(HOUR FROM hora_inicio)::int    AS hour,
+      COUNT(*)::int                          AS count
+    FROM "Reserva"
+    WHERE estado_reserva IN ('PENDIENTE', 'ACTIVO')
+      AND fecha_reserva < CURRENT_DATE
+      AND DATE(fecha_reserva) BETWEEN ${window.effectiveFrom}::date
+                                   AND ${window.effectiveTo}::date
+    GROUP BY day, hour
+    ORDER BY day, hour
+  `;
+
+  const [totalRow] = await sql`
+    SELECT COUNT(*)::int AS total
+    FROM "Reserva"
+    WHERE estado_reserva IN ('PENDIENTE', 'ACTIVO')
+      AND fecha_reserva < CURRENT_DATE
+      AND DATE(fecha_reserva) BETWEEN ${window.effectiveFrom}::date
+                                   AND ${window.effectiveTo}::date
+  `;
+
+  const maxCount = rows.reduce((max, r) => Math.max(max, clampCount(r.count)), 0);
+
+  return {
+    ok: true,
+    data: {
+      heatmap: rows.map((r) => ({
+        day:   Number(r.day),
+        hour:  Number(r.hour),
+        count: clampCount(r.count),
+      })),
+      total:    clampCount(totalRow?.total),
+      maxCount,
+      from: window.effectiveFrom,
+      to:   window.effectiveTo,
+    },
+  };
+}
+
+module.exports = { getAdminStats, getNoShowHeatmap };

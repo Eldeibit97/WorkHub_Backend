@@ -1,5 +1,6 @@
 const adminUsersService = require('../services/adminUsers.service');
 const adminStatsService = require('../services/adminStats.service');
+const adminStatsService = require('../services/adminStats.service');
 
 function getRolesCatalog(req, res) {
   try {
@@ -157,6 +158,22 @@ async function getAdminStats(req, res) {
   }
 }
 
+async function getNoShowHeatmap(req, res) {
+  try {
+    const { from, to } = req.query || {};
+    const result = await adminStatsService.getNoShowHeatmap({ from, to });
+
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    return res.status(200).json(result.data);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Error del servidor' });
+  }
+}
+
 module.exports = {
   getRolesCatalog,
   listAdminUsers,
@@ -167,4 +184,5 @@ module.exports = {
   deleteAdminUser,
   importUsersCsv,
   getAdminStats,
+  getNoShowHeatmap
 };

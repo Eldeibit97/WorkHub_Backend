@@ -16,12 +16,14 @@ const {
   deleteAdminUser,
   importUsersCsv,
   getAdminStats,
+  getNoShowHeatmap
 } = require('../controllers/adminUsers.controller');
 
 const router = express.Router();
 
 router.get('/roles', requireAdmin, getRolesCatalog);
 router.get('/stats', requireAdmin, getAdminStats);
+router.get('/no-shows/heatmap', requireAdmin, getNoShowHeatmap);
 
 router.get('/users', requireAdmin, listAdminUsers);
 router.post('/users/import-csv', requireAdmin, importUsersCsv);
