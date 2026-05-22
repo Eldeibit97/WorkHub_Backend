@@ -12,25 +12,26 @@ const transporter = nodemailer.createTransport({
 
 async function sendConfirmationEmail(details) {
   await transporter.sendMail({
-    from: `"My App" <${process.env.SMTP_USER}>`,
+    from: `"WorkHubMTY" <${process.env.SMTP_FROM}>`,
     to: details.guestEmail,
-    subject: `Reservation Confirmed – ${details.date}`,
+    subject: `Reserva confirmada – ${details.date}`,
     html: `
-      <h2>Your reservation is confirmed! 🎉</h2>
-      <p>Hi ${details.guestName}, we'll see you on ${details.date} at ${details.time}.</p>
-      <p><a href="${process.env.APP_URL}/cancel/${details.reservationId}">Cancel reservation</a></p>
+      <h2>¡Tu reserva ha sido confirmada!</h2>
+      <p>Hola ${details.guestName}, te esperamos el ${details.date} de ${details.horaInicio} a ${details.horaFin}.</p>
+      <p><strong>Espacio:</strong> ${details.nombreEspacio} (${details.codigoEspacio})</p>
+      <p><strong>Zona:</strong> ${details.nombreZona}, ${details.edificio}</p>
     `,
   });
 }
 
 async function sendCancellationEmail(details) {
   await transporter.sendMail({
-    from: `"My App" <${process.env.SMTP_USER}>`,
+    from: `"WorkHubMTY" <${process.env.SMTP_FROM}>`,
     to: details.guestEmail,
-    subject: `Reservation Cancelled – ${details.date}`,
+    subject: `Reserva cancelada – ${details.date}`,
     html: `
-      <h2>Your reservation has been cancelled</h2>
-      <p>Hi ${details.guestName}, your reservation on ${details.date} has been cancelled.</p>
+      <h2>Tu reserva ha sido cancelada</h2>
+      <p>Hola ${details.guestName}, tu reserva del ${details.date} de ${details.horaInicio} a ${details.horaFin} en <strong>${details.nombreEspacio}</strong> ha sido cancelada.</p>
     `,
   });
 }

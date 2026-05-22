@@ -4,6 +4,7 @@ const modeloReserva = require('../models/modeloReserva');
 const { RESERVATION_STATUS } = require('../constants/reservationStatus');
 const { normalizeTimeLabel, intervalsOverlap, toMinutes } = require('../utils/timeRange');
 const spacesService = require('./spaces.service');
+const { sendConfirmationEmail } = require('./email.service');
 
 /** YYYY-MM-DD, primeros 10 de ISO, o Date local (sin horas raras en string arbitrario). */
 function normalizeFechaReserva(v) {
@@ -459,6 +460,38 @@ async function createReservationsBatch(idUsuario, items) {
     if (ids.length !== normalized.length) {
       return { ok: false, status: 500, message: 'No se pudieron obtener todos los id de reserva' };
     }
+
+    // Send confirmation emails (fire-and-forget, failures don't break the response)
+    try {
+      const usuario = await modeloUsuario.encontrarPorId(uid);
+      if (usuario) {
+        const espacioIds = [...new Set(normalized.map((x) => x.idEspacio))];
+        const espacios = await sql`
+          SELECT e.id_espacio, e.nombre_espacio, e.codigo_espacio, z.nombre_zona, z.edificio
+            FROM public."Espacio" e
+            JOIN public."Zona" z ON e.id_zona = z.id_zona
+           WHERE e.id_espacio = ANY(${espacioIds})
+        `;
+        const espacioMap = new Map(espacios.map((e) => [e.id_espacio, e]));
+        for (const it of normalized) {
+          const espacio = espacioMap.get(it.idEspacio) ?? {};
+          await sendConfirmationEmail({
+            guestEmail: usuario.correo_institucional,
+            guestName: `${usuario.nombre} ${usuario.apellido}`,
+            date: it.fechaReserva,
+            horaInicio: it.horaInicio,
+            horaFin: it.horaSalida,
+            nombreEspacio: espacio.nombre_espacio ?? '',
+            codigoEspacio: espacio.codigo_espacio ?? '',
+            nombreZona: espacio.nombre_zona ?? '',
+            edificio: espacio.edificio ?? '',
+          });
+        }
+      }
+    } catch (emailErr) {
+      console.error('Error al enviar correo de confirmación:', emailErr);
+    }
+
     return { ok: true, status: 201, ids };
   } catch (error) {
     console.error('createReservationsBatch', error);
