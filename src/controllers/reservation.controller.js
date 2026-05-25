@@ -1,5 +1,6 @@
 'use strict';
 
+const { sql } = require('../config/db.js');
 const modeloReserva  = require('../models/modeloReserva.js');
 const reservationSvc = require('../services/reservation.service.js');
 const {
@@ -7,9 +8,22 @@ const {
   createReservationsBatch,
 } = reservationSvc;
 
+// Obtener el mapa de espacios bloqueados por socket
+let blockedBySocket = null;
+const getBlockedBySocket = () => {
+  if (!blockedBySocket) {
+    try {
+      const wsModule = require('../config/websocket.js');
+      blockedBySocket = wsModule.getBlockedBySocket?.() || new Map();
+    } catch (err) {
+      blockedBySocket = new Map();
+    }
+  }
+  return blockedBySocket;
+};
+
 const getUsers = async (req, res) => {
   try {
-    const { sql } = require('../config/db.js');
     const users = await sql`SELECT * FROM "Usuario"`;
     res.json(users);
   } catch (error) {
@@ -165,6 +179,8 @@ const batchCreateReservas = async (req, res) => {
       const io = req.app.get('io');
       if (io && result.ids.length > 0) {
         const { sql } = require('../config/db.js');
+        // Importar el mapa de bloqueados (desde websocket.js)
+        const blockedBySocket = new Map();
         
         // Obtener las zonas de los espacios creados
         const createdReservas = await sql`
@@ -204,13 +220,27 @@ const createReserva = async (req, res) => {
   try {
     const datos = req.body || {};
 
-    // CORRECCIÓN: se añaden `return` para detener la ejecución tras enviar respuesta
     if (!datos.mail || !datos.fechaReserva || !datos.idEspacio ||
         !datos.horaInicio || !datos.horaSalida || !datos.fechaCreacion) {
       return res.status(400).json({ message: 'Todos los campos deben ser llenados' });
     }
 
     const response = await reservationSvc.reservarEspacio(datos);
+    
+    // Emitir evento WebSocket si la reserva fue exitosa
+    if (response.status === 200 && response.idZona && response.idEspacio) {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`zona-${response.idZona}`).emit('availability:changed', {
+          zonaId: response.idZona,
+          timestamp: new Date().toISOString(),
+          tipo: 'availability:changed',
+          espacios: [{ idEspacio: response.idEspacio, estado: 'OCUPADO' }]
+        });
+        console.log(`[WebSocket] Emitido availability:changed para zona ${response.idZona}, espacio ${response.idEspacio} → OCUPADO`);
+      }
+    }
+    
     res.status(response.status).json({ status: response.status, message: response.message });
 
   } catch (error) {
@@ -246,6 +276,20 @@ const checkInReserva = async (req, res) => {
       return res.status(result.status).json({ message: result.message });
     }
 
+    // Emitir evento WebSocket si el check-in fue exitoso
+    if (result.id_zona && result.id_espacio) {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`zona-${result.id_zona}`).emit('availability:changed', {
+          zonaId: result.id_zona,
+          timestamp: new Date().toISOString(),
+          tipo: 'availability:changed',
+          espacios: [{ idEspacio: result.id_espacio, estado: 'CHECKED_IN' }]
+        });
+        console.log(`[WebSocket] Emitido availability:changed para zona ${result.id_zona}, espacio ${result.id_espacio} → CHECKED_IN`);
+      }
+    }
+
     res.json({ success: true, message: result.message });
 
   } catch (error) {
@@ -277,6 +321,183 @@ const checkOutReserva = async (req, res) => {
   }
 };
 
+// ─── POST /reservas/bloquear-temporal ─────────────────────────────────────
+const bloquearEspacioTemporal = async (req, res) => {
+  try {
+    const { id_espacios, id_zona, socketId } = req.body;
+
+    if (!id_espacios || !Array.isArray(id_espacios) || id_espacios.length === 0) {
+      return res.status(400).json({ message: 'id_espacios es requerido (array)' });
+    }
+
+    if (!id_zona) {
+      return res.status(400).json({ message: 'id_zona es requerido' });
+    }
+
+    // Bloquear espacios temporalmente
+    for (const id_espacio of id_espacios) {
+      await sql`
+        UPDATE "Espacio"
+        SET
+          estado_actual = 'BLOQUEADO_TEMPORAL'
+        WHERE id_espacio = ${id_espacio}
+      `;
+    }
+
+    // Guardar en mapa (para liberar al desconectar si es necesario)
+    if (socketId) {
+      const blockedMap = getBlockedBySocket();
+      blockedMap.set(socketId, { zonaId: id_zona, espacios: id_espacios });
+      console.log(`[bloquearEspacioTemporal] Registrado socketId ${socketId} con ${id_espacios.length} espacios`);
+    }
+
+    // Emitir WebSocket a TODOS en la zona
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`zona-${id_zona}`).emit('availability:changed', {
+        zonaId: id_zona,
+        timestamp: new Date().toISOString(),
+        tipo: 'availability:changed',
+        espacios: id_espacios.map(idEsp => ({ idEspacio: idEsp, estado: 'BLOQUEADO_TEMPORAL' }))
+      });
+      console.log(`[WebSocket] Bloqueados espacios ${id_espacios.join(',')} en zona ${id_zona}`);
+    }
+
+    // Liberar automáticamente después de 5 minutos (igual que countdown del frontend)
+    const TIMEOUT_MS = 300 * 1000; // 300 segundos = 5 minutos
+    setTimeout(async () => {
+      try {
+        for (const id_espacio of id_espacios) {
+          await sql`
+            UPDATE "Espacio"
+            SET estado_actual = 'DISPONIBLE'
+            WHERE id_espacio = ${id_espacio}
+              AND estado_actual = 'BLOQUEADO_TEMPORAL'
+          `;
+        }
+        
+        // Limpiar del mapa si pasó el timeout
+        if (socketId) {
+          const blockedMap = getBlockedBySocket();
+          blockedMap.delete(socketId);
+        }
+        
+        if (io) {
+          io.to(`zona-${id_zona}`).emit('availability:changed', {
+            zonaId: id_zona,
+            timestamp: new Date().toISOString(),
+            tipo: 'availability:changed',
+            espacios: id_espacios.map(idEsp => ({ idEspacio: idEsp, estado: 'DISPONIBLE' }))
+          });
+          console.log(`[AutoRelease] Liberados espacios ${id_espacios.join(',')} después de 5 min`);
+        }
+      } catch (err) {
+        console.error('[AutoRelease] Error:', err);
+      }
+    }, TIMEOUT_MS);
+
+    res.json({ success: true, message: 'Espacios bloqueados temporalmente' });
+
+  } catch (error) {
+    console.error('Error bloqueando espacios:', error);
+    res.status(500).json({ message: 'Error bloqueando espacios' });
+  }
+};
+
+// ─── POST /reservas/liberar-temporal ──────────────────────────────────────
+const liberarEspacioTemporal = async (req, res) => {
+  try {
+    let body = req.body;
+    
+    if (process.env.DEBUG_WEBSOCKET === 'true') {
+      console.log('[liberarEspacioTemporal] Recibido body (tipo:', typeof body, '):', body);
+    }
+    
+    // Si viene como text/plain (sendBeacon), parsear
+    if (typeof body === 'string') {
+      try {
+        body = JSON.parse(body);
+      } catch (e) {
+        console.error('[liberarEspacioTemporal] Error parseando JSON:', e.message);
+        return res.status(400).json({ message: 'Body debe ser JSON válido', error: e.message });
+      }
+    }
+
+    const { id_espacios, id_zona, espacios, zonaId, socketId } = body;
+
+    // Normalizar nombres de campos (puede venir con diferentes nombres)
+    const espaciosArray = id_espacios || espacios;
+    const zonaIdNorm = id_zona || zonaId;
+
+    if (process.env.DEBUG_WEBSOCKET === 'true') {
+      console.log('[liberarEspacioTemporal] espaciosArray:', espaciosArray, 'zonaId:', zonaIdNorm);
+    }
+
+    let processedEspacios = espaciosArray;
+    
+    // Si viene como string, parsear
+    if (typeof processedEspacios === 'string') {
+      processedEspacios = processedEspacios.split(',').map(id => Number(id)).filter(id => !isNaN(id));
+    }
+    
+    // Validar que sea array
+    if (!Array.isArray(processedEspacios)) {
+      processedEspacios = [processedEspacios].filter(id => !isNaN(Number(id))).map(Number);
+    }
+
+    if (!processedEspacios || processedEspacios.length === 0) {
+      return res.status(400).json({ message: 'id_espacios es requerido (array o string)' });
+    }
+
+    let normalizedZona = Number(zonaIdNorm);
+    if (!normalizedZona || isNaN(normalizedZona)) {
+      return res.status(400).json({ message: 'id_zona es requerido (número)' });
+    }
+
+    if (process.env.DEBUG_WEBSOCKET === 'true') {
+      console.log('[liberarEspacioTemporal] Procesando:', processedEspacios.length, 'espacios en zona', normalizedZona);
+    }
+
+    // Liberar espacios (volver a DISPONIBLE)
+    for (const id_espacio of processedEspacios) {
+      await sql`
+        UPDATE "Espacio"
+        SET
+          estado_actual = 'DISPONIBLE'
+        WHERE id_espacio = ${id_espacio}
+      `;
+    }
+
+    // Limpiar del mapa si fue liberado manualmente
+    if (socketId) {
+      const blockedMap = getBlockedBySocket();
+      blockedMap.delete(socketId);
+      if (process.env.DEBUG_WEBSOCKET === 'true') {
+        console.log(`[liberarEspacioTemporal] Eliminado socketId ${socketId} del mapa`);
+      }
+    }
+
+    // Emitir WebSocket
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`zona-${normalizedZona}`).emit('availability:changed', {
+        zonaId: normalizedZona,
+        timestamp: new Date().toISOString(),
+        tipo: 'availability:changed',
+        espacios: processedEspacios.map(idEsp => ({ idEspacio: idEsp, estado: 'DISPONIBLE' }))
+      });
+      if (process.env.DEBUG_WEBSOCKET === 'true') {
+        console.log(`[WebSocket] Liberados espacios ${processedEspacios.join(',')} en zona ${normalizedZona}`);
+      }
+    }
+
+    res.json({ success: true, message: 'Espacios liberados', count: processedEspacios.length });
+  } catch (error) {
+    console.error('Error liberando espacios:', error);
+    res.status(500).json({ message: 'Error liberando espacios', error: error.message });
+  }
+};
+
 module.exports = {
   getUsers,
   getReservas,
@@ -288,5 +509,7 @@ module.exports = {
   checkInReserva,
   checkOutReserva,
   batchCreateReservas,
-  tieneReserva
+  bloquearEspacioTemporal,
+  liberarEspacioTemporal,
+  tieneReserva, 
 };

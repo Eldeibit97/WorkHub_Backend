@@ -85,6 +85,8 @@ app.use(
   })
 );
 app.use(express.json());
+app.use(express.text({ type: 'text/plain', limit: '1mb' })); // Para sendBeacon
+app.use(express.raw({ type: 'application/octet-stream', limit: '1mb' })); // Para binarios si los hay
 app.use(createSessionMiddleware());
 
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { customSiteTitle: 'WorkHub API' }));
