@@ -208,13 +208,11 @@
  *         application/json:
  *           schema:
  *             type: object
- *             required: [id_reserva, id_usuario, id_espacio, fecha_reserva, hora_inicio, hora_fin, estado_reserva, fecha_creacion, tipo_reserva]
+ *             required: [id_reserva, id_usuario, fecha_reserva, hora_inicio, hora_fin, estado_reserva, tipo_reserva]
  *             properties:
  *               id_reserva:
  *                 type: integer
  *               id_usuario:
- *                 type: integer
- *               id_espacio:
  *                 type: integer
  *               fecha_reserva:
  *                 type: string
@@ -223,8 +221,6 @@
  *               hora_fin:
  *                 type: string
  *               estado_reserva:
- *                 type: string
- *               fecha_creacion:
  *                 type: string
  *               tipo_reserva:
  *                 type: string
@@ -441,6 +437,60 @@
  *         description: userId requerido
  *       500:
  *         description: Error al obtener preferencias inferidas
+ *
+ * /api/tipos-espacio:
+ *   get:
+ *     tags: [Espacios]
+ *     summary: Catálogo de tipos de espacio (editor y reservas)
+ *     description: Solo tipos activos en producto — ids 1, 2 y 5.
+ *     responses:
+ *       200:
+ *         description: Lista de tipos
+ *
+ * /api/admin/zonas/{id}/floor-layout:
+ *   put:
+ *     tags: [Admin]
+ *     summary: Guardar layout de piso y CRUD de espacios
+ *     security:
+ *       - bearerAuth: []
+ *       - sessionCookie: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: id_zona
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               codigoZona:
+ *                 type: string
+ *               viewBox:
+ *                 type: string
+ *               background:
+ *                 type: string
+ *               espacios:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *               eliminarIds:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *     responses:
+ *       200:
+ *         description: Layout guardado (incluye espacios actualizados de la zona)
+ *       400:
+ *         description: Validación
+ *       404:
+ *         description: Zona no encontrada
+ *       409:
+ *         description: Código duplicado o reservas bloquean baja
  */
 
 module.exports = {};

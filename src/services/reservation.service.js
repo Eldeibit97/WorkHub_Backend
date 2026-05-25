@@ -5,6 +5,30 @@ const { RESERVATION_STATUS } = require('../constants/reservationStatus');
 const { normalizeTimeLabel, intervalsOverlap, toMinutes } = require('../utils/timeRange');
 const spacesService = require('./spaces.service');
 
+/** YYYY-MM-DD, primeros 10 de ISO, o Date local (sin horas raras en string arbitrario). */
+function normalizeFechaReserva(v) {
+  if (v == null) return '';
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    const y = v.getFullYear();
+    const m = String(v.getMonth() + 1).padStart(2, '0');
+    const d = String(v.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const head = s.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(head)) return head;
+  return '';
+}
+
+/** Límite PostgreSQL `integer` (int4); ids de tablas y FK deben caber aquí. */
+const MAX_PG_INT = 2147483647;
+
+function isValidPgInt32(n) {
+  const x = Number(n);
+  return Number.isFinite(x) && Number.isInteger(x) && x > 0 && x <= MAX_PG_INT;
+}
+
 const fetchReservations = async (userId, status) => {
   try {
     let result;
@@ -85,7 +109,7 @@ const fetchAllReservas = async () => {
   }
 };
 
-const updateReserva = async ({ id_reserva, id_espacio, fecha_reserva, hora_inicio, hora_fin, estado_reserva, fecha_creacion, tipo_reserva }) => {
+const updateReserva = async ({ id_reserva, fecha_reserva, hora_inicio, hora_fin, estado_reserva, tipo_reserva }) => {
   // 1. Verificar que la reserva existe
   const reserva = await modeloReserva.encontrarPorId(id_reserva);
   if (!reserva || reserva.length === 0) {
@@ -97,12 +121,10 @@ const updateReserva = async ({ id_reserva, id_espacio, fecha_reserva, hora_inici
     await sql`
       UPDATE "Reserva"
       SET
-        id_espacio     = ${id_espacio},
         fecha_reserva  = ${fecha_reserva},
         hora_inicio    = ${hora_inicio},
         hora_fin       = ${hora_fin},
         estado_reserva = ${estado_reserva},
-        fecha_creacion = ${fecha_creacion},
         tipo_reserva   = ${tipo_reserva}
       WHERE id_reserva = ${id_reserva}
       RETURNING *
@@ -227,6 +249,7 @@ const fetchAvailability = async (date, id_zona) => {
         AND e.id_zona = ${id_zona}
       ORDER BY e.codigo_espacio ASC;
     `;
+
     return result;
   } catch (error) {
     console.error("Error checking availability in Service:", error);
@@ -319,7 +342,8 @@ function collectReturningIds(transactionResults) {
  * Crear varias reservas en una transacción (usuario tomado del JWT).
  */
 async function createReservationsBatch(idUsuario, items) {
-  if (idUsuario == null || Number.isNaN(Number(idUsuario))) {
+  const uidNum = Number(idUsuario);
+  if (!isValidPgInt32(uidNum)) {
     return { ok: false, status: 401, message: 'Usuario no válido en token' };
   }
   if (!Array.isArray(items) || items.length === 0) {
@@ -328,20 +352,27 @@ async function createReservationsBatch(idUsuario, items) {
 
   const normalized = [];
   for (const raw of items) {
-    const idEspacio = parseInt(raw.idEspacio ?? raw.id_espacio, 10);
-    const fechaReserva = raw.fechaReserva ?? raw.fecha_reserva;
-    const horaInicio = normalizeTimeLabel(raw.horaInicio ?? raw.hora_inicio);
+    const idEspacio = parseInt(
+      raw.idEspacio ?? raw.id_espacio ?? raw.spaceId ?? raw.espacioId,
+      10
+    );
+    const fechaReserva = normalizeFechaReserva(
+      raw.fechaReserva ?? raw.fecha_reserva ?? raw.fecha ?? raw.date
+    );
+    const horaInicio = normalizeTimeLabel(
+      raw.horaInicio ?? raw.hora_inicio ?? raw.startTime
+    );
     const horaSalida = normalizeTimeLabel(
-      raw.horaSalida ?? raw.hora_salida ?? raw.hora_fin
+      raw.horaSalida ?? raw.hora_salida ?? raw.hora_fin ?? raw.horaFin ?? raw.endTime
     );
     const tipoReserva = raw.tipoReserva ?? raw.tipo_reserva ?? 'INDIVIDUAL';
 
-    if (!Number.isFinite(idEspacio) || !fechaReserva || !horaInicio || !horaSalida) {
+    if (!isValidPgInt32(idEspacio) || !fechaReserva || !horaInicio || !horaSalida) {
       return {
         ok: false,
         status: 400,
         message:
-          'Cada reserva requiere idEspacio, fechaReserva (YYYY-MM-DD), horaInicio y horaSalida (HH:mm)'
+          'Cada reserva requiere idEspacio (id numérico del espacio en BD, no un timestamp), fechaReserva (YYYY-MM-DD), horaInicio y horaSalida (HH:mm)'
       };
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fechaReserva))) {
@@ -402,7 +433,7 @@ async function createReservationsBatch(idUsuario, items) {
     }
   }
 
-  const uid = Number(idUsuario);
+  const uid = uidNum;
   const stmts = normalized.map(
     (it) => sql`
     INSERT INTO public."Reserva" (
@@ -435,6 +466,16 @@ async function createReservationsBatch(idUsuario, items) {
   }
 }
 
+const buscaReserva = async (datos) => {
+  try {
+    const hasActive = await sql`SELECT EXISTS (SELECT 1 FROM "Reserva" WHERE id_usuario = ${datos.user_id} AND "fecha_reserva" BETWEEN ${datos.today} AND ${datos.rango} AND estado_reserva IN ('ACTIVO', 'PENDIENTE'));`;
+    return hasActive[0].exists;
+  } catch (error) {
+    console.error('Ocurrio un error al buscar reservas pendientes o activas');
+    throw error;
+  }
+}
+
 module.exports = {
   fetchReservations,
   fetchAvailability,
@@ -445,4 +486,5 @@ module.exports = {
   updateReserva,
   performCheckIn,
   performCheckOut,
+  buscaReserva
 };

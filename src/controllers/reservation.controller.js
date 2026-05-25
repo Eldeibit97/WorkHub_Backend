@@ -73,20 +73,20 @@ const getReservaByID = async (req, res) => {
 // ─── PUT /reservas/update ─────────────────────────────────────────────────────
 const updateReserva = async (req, res) => {
   const {
-    id_reserva, id_usuario, id_espacio, fecha_reserva,
-    hora_inicio, hora_fin, estado_reserva, fecha_creacion, tipo_reserva,
+    id_reserva, id_usuario, fecha_reserva,
+    hora_inicio, hora_fin, estado_reserva, tipo_reserva,
   } = req.body;
 
   // Validación de campos requeridos
-  if (!id_reserva || !id_usuario || !id_espacio || !fecha_reserva ||
-      !hora_inicio || !hora_fin || !estado_reserva || !fecha_creacion || !tipo_reserva) {
+  if (!id_reserva || !id_usuario || !fecha_reserva ||
+      !hora_inicio || !hora_fin || !estado_reserva || !tipo_reserva) {
     return res.status(400).json({ error: 'Datos incompletos para actualizar la reserva' });
   }
 
   try {
     const result = await reservationSvc.updateReserva({
-      id_reserva, id_espacio, fecha_reserva,
-      hora_inicio, hora_fin, estado_reserva, fecha_creacion, tipo_reserva,
+      id_reserva, fecha_reserva,
+      hora_inicio, hora_fin, estado_reserva, tipo_reserva,
     });
 
     if (!result.ok) {
@@ -219,6 +219,18 @@ const createReserva = async (req, res) => {
   }
 };
 
+// ─── POST /reservas/verifica reserva activa ───────────────────────────────────────────────────
+const tieneReserva = async (req, res) => {
+  try{
+    const data = req.body;
+    const pendiente = await reservationSvc.buscaReserva(data);
+    res.status(200).json({pendiente: pendiente});
+  }catch{
+    console.error('Error al buscar si existe una reserva activa');
+    res.status(400).json({error: 'Error al buscar si existe una reserva'});
+  }
+}
+
 // ─── PUT /reservas/check-in ───────────────────────────────────────────────────
 const checkInReserva = async (req, res) => {
   try {
@@ -276,4 +288,5 @@ module.exports = {
   checkInReserva,
   checkOutReserva,
   batchCreateReservas,
+  tieneReserva
 };

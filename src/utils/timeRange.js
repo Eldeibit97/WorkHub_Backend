@@ -3,8 +3,9 @@
  */
 
 function normalizeTimeLabel(t) {
-  if (t == null || typeof t !== 'string') return '';
-  const trimmed = t.trim();
+  if (t == null) return '';
+  if (typeof t !== 'string' && typeof t !== 'number') return '';
+  const trimmed = String(t).trim();
   const parts = trimmed.split(':');
   if (parts.length < 2) return '';
   const h = String(parseInt(parts[0], 10)).padStart(2, '0');
