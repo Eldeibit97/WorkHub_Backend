@@ -224,6 +224,7 @@ async function getNoShowFloorHeatmap({ zonaId, from, to }) {
   const rows = await sql`
     SELECT
       r.id_espacio,
+      e.nombre_espacio,
       COUNT(*)::int AS count
     FROM "Reserva" r
     JOIN "Espacio" e ON e.id_espacio = r.id_espacio
@@ -233,7 +234,7 @@ async function getNoShowFloorHeatmap({ zonaId, from, to }) {
                                      AND ${window.effectiveTo}::date
       AND e.id_zona = ${zId}
       AND e.activo = TRUE
-    GROUP BY r.id_espacio
+    GROUP BY r.id_espacio, e.nombre_espacio
     ORDER BY count DESC
   `;
 
@@ -245,6 +246,7 @@ async function getNoShowFloorHeatmap({ zonaId, from, to }) {
     data: {
       noShowsBySpace: rows.map((r) => ({
         id_espacio: Number(r.id_espacio),
+        nombre_espacio: String(r.nombre_espacio),
         count:      clampCount(r.count),
       })),
       maxCount,
