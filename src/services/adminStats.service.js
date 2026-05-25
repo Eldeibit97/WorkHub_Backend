@@ -211,4 +211,48 @@ async function getNoShowHeatmap({ from, to }) {
   };
 }
 
-module.exports = { getAdminStats, getNoShowHeatmap };
+async function getNoShowFloorHeatmap({ zonaId, from, to }) {
+  // Validar zonaId
+  const zId = parseInt(String(zonaId ?? ''), 10);
+  if (!Number.isFinite(zId) || zId <= 0) {
+    return { ok: false, status: 422, message: 'zonaId debe ser un número válido' };
+  }
+
+  const window = resolveWindow(from, to);
+  if (!window.ok) return window;
+
+  const rows = await sql`
+    SELECT
+      r.id_espacio,
+      COUNT(*)::int AS count
+    FROM "Reserva" r
+    JOIN "Espacio" e ON e.id_espacio = r.id_espacio
+    WHERE r.estado_reserva IN ('PENDIENTE', 'ACTIVO')
+      AND r.fecha_reserva < CURRENT_DATE
+      AND DATE(r.fecha_reserva) BETWEEN ${window.effectiveFrom}::date
+                                     AND ${window.effectiveTo}::date
+      AND e.id_zona = ${zId}
+      AND e.activo = TRUE
+    GROUP BY r.id_espacio
+    ORDER BY count DESC
+  `;
+
+  const maxCount = rows.reduce((max, r) => Math.max(max, clampCount(r.count)), 0);
+  const total    = rows.reduce((sum, r) => sum + clampCount(r.count), 0);
+
+  return {
+    ok: true,
+    data: {
+      noShowsBySpace: rows.map((r) => ({
+        id_espacio: Number(r.id_espacio),
+        count:      clampCount(r.count),
+      })),
+      maxCount,
+      total,
+      from: window.effectiveFrom,
+      to:   window.effectiveTo,
+    },
+  };
+}
+
+module.exports = { getAdminStats, getNoShowHeatmap, getNoShowFloorHeatmap };
