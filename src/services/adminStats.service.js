@@ -257,4 +257,42 @@ async function getNoShowFloorHeatmap({ zonaId, from, to }) {
   };
 }
 
-module.exports = { getAdminStats, getNoShowHeatmap, getNoShowFloorHeatmap };
+async function getNoShowByUser({ from, to }) {
+  const window = resolveWindow(from, to);
+  if (!window.ok) return window;
+
+  const rows = await sql`
+    SELECT
+      u.id_usuario,
+      u.nombre,
+      u.apellido,
+      u.correo_institucional,
+      COUNT(*)::int AS count
+    FROM "Reserva" r
+    JOIN "Usuario" u ON u.id_usuario = r.id_usuario
+    WHERE r.estado_reserva IN ('PENDIENTE', 'ACTIVO')
+      AND r.fecha_reserva < CURRENT_DATE
+      AND DATE(r.fecha_reserva) BETWEEN ${window.effectiveFrom}::date
+                                     AND ${window.effectiveTo}::date
+    GROUP BY u.id_usuario, u.nombre, u.apellido, u.correo_institucional
+    ORDER BY count DESC
+  `;
+
+  return {
+    ok: true,
+    data: {
+      users:  rows.map((r) => ({
+        id_usuario:            Number(r.id_usuario),
+        nombre:                r.nombre,
+        apellido:              r.apellido,
+        correo_institucional:  r.correo_institucional,
+        count:                 clampCount(r.count),
+      })),
+      total: rows.reduce((sum, r) => sum + clampCount(r.count), 0),
+      from:  window.effectiveFrom,
+      to:    window.effectiveTo,
+    },
+  };
+}
+
+module.exports = { getAdminStats, getNoShowHeatmap, getNoShowFloorHeatmap, getNoShowByUser };
