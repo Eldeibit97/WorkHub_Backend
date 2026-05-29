@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
@@ -8,9 +10,6 @@ const adminRoutes = require('./src/routes/admin.routes');
 const usersRoutes = require('./src/routes/users.routes');
 const preferencesRoutes = require('./src/routes/preferences.routes');
 const { swaggerSpec } = require('./src/config/swagger');
-const dotenv = require('dotenv');
-
-dotenv.config();
 
 if (!process.env.JWT_SECRET || String(process.env.JWT_SECRET).trim() === '') {
   console.error(
