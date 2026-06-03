@@ -13,6 +13,9 @@ const usersRoutes = require('./src/routes/users.routes');
 const preferencesRoutes = require('./src/routes/preferences.routes');
 const { swaggerSpec } = require('./src/config/swagger');
 const initializeWebSocket = require('./src/config/websocket');
+const dotenv = require('dotenv');
+
+dotenv.config();
 
 if (!process.env.JWT_SECRET || String(process.env.JWT_SECRET).trim() === '') {
   console.error(

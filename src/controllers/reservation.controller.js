@@ -351,16 +351,19 @@ const bloquearEspacioTemporal = async (req, res) => {
       console.log(`[bloquearEspacioTemporal] Registrado socketId ${socketId} con ${id_espacios.length} espacios`);
     }
 
-    // Emitir WebSocket a TODOS en la zona
+    // Al final de bloquearEspacioTemporal, DESPUÉS de actualizar la BD:
     const io = req.app.get('io');
+
     if (io) {
       io.to(`zona-${id_zona}`).emit('availability:changed', {
-        zonaId: id_zona,
+        zonaId: Number(id_zona),
         timestamp: new Date().toISOString(),
         tipo: 'availability:changed',
-        espacios: id_espacios.map(idEsp => ({ idEspacio: idEsp, estado: 'BLOQUEADO_TEMPORAL' }))
+        espacios: id_espacios.map((idEsp) => ({
+          idEspacio: idEsp,
+          estado: 'BLOQUEADO_TEMPORAL'
+        }))
       });
-      console.log(`[WebSocket] Bloqueados espacios ${id_espacios.join(',')} en zona ${id_zona}`);
     }
 
     // Liberar automáticamente después de 5 minutos (igual que countdown del frontend)
@@ -467,16 +470,6 @@ const liberarEspacioTemporal = async (req, res) => {
         WHERE id_espacio = ${id_espacio}
       `;
     }
-
-    // Limpiar del mapa si fue liberado manualmente
-    if (socketId) {
-      const blockedMap = getBlockedBySocket();
-      blockedMap.delete(socketId);
-      if (process.env.DEBUG_WEBSOCKET === 'true') {
-        console.log(`[liberarEspacioTemporal] Eliminado socketId ${socketId} del mapa`);
-      }
-    }
-
     // Emitir WebSocket
     const io = req.app.get('io');
     if (io) {

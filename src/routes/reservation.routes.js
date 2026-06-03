@@ -22,8 +22,8 @@ router.get('/usuarios', queries.getUsers);
 
 router.put('/reservas/check-in', queries.checkInReserva);
 router.put('/reservas/check-out', queries.checkOutReserva);
-router.post('/reservas/bloquear', queries.bloquearEspacioTemporal);
-router.post('/reservas/liberar', queries.liberarEspacioTemporal);
+router.post('/reservas/bloquear-temporal', queries.bloquearEspacioTemporal);
+router.post('/reservas/liberar-temporal', queries.liberarEspacioTemporal);
 router.get('/reservas/tiene-reserva', queries.tieneReserva);
 
 module.exports = router;
