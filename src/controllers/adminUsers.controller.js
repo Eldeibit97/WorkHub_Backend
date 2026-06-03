@@ -157,6 +157,52 @@ async function getAdminStats(req, res) {
   }
 }
 
+async function getNoShowHeatmap(req, res) {
+  try {
+    const { from, to } = req.query || {};
+    const result = await adminStatsService.getNoShowHeatmap({ from, to });
+
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+
+    return res.status(200).json(result.data);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Error del servidor' });
+  }
+}
+
+async function getNoShowFloorHeatmap(req, res) {
+  try {
+    const { zonaId, from, to } = req.query || {};
+    const result = await adminStatsService.getNoShowFloorHeatmap({ zonaId, from, to });
+
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+    return res.status(200).json(result.data);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Error del servidor' });
+  }
+}
+
+async function getNoShowByUser(req, res) {
+  try {
+    const { from, to } = req.query || {};
+    const result = await adminStatsService.getNoShowByUser({ from, to });
+
+    if (!result.ok) {
+      return res.status(result.status).json({ message: result.message });
+    }
+    return res.status(200).json(result.data);
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Error del servidor' });
+  }
+}
+
 module.exports = {
   getRolesCatalog,
   listAdminUsers,
@@ -167,4 +213,7 @@ module.exports = {
   deleteAdminUser,
   importUsersCsv,
   getAdminStats,
+  getNoShowHeatmap,
+  getNoShowFloorHeatmap,
+  getNoShowByUser
 };

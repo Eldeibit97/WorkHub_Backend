@@ -165,4 +165,134 @@ async function getAdminStats({ from, to }) {
   };
 }
 
-module.exports = { getAdminStats };
+async function getNoShowHeatmap({ from, to }) {
+  const window = resolveWindow(from, to);
+  if (!window.ok) return window;
+
+  // No-show: reserva PENDIENTE o ACTIVO cuya fecha ya pasó
+  const rows = await sql`
+    SELECT
+      EXTRACT(DOW  FROM fecha_reserva)::int  AS day,
+      EXTRACT(HOUR FROM hora_inicio)::int    AS hour,
+      COUNT(*)::int                          AS count
+    FROM "Reserva"
+    WHERE estado_reserva IN ('PENDIENTE', 'ACTIVO')
+      AND fecha_reserva < CURRENT_DATE
+      AND DATE(fecha_reserva) BETWEEN ${window.effectiveFrom}::date
+                                   AND ${window.effectiveTo}::date
+    GROUP BY day, hour
+    ORDER BY day, hour
+  `;
+
+  const [totalRow] = await sql`
+    SELECT COUNT(*)::int AS total
+    FROM "Reserva"
+    WHERE estado_reserva IN ('PENDIENTE', 'ACTIVO')
+      AND fecha_reserva < CURRENT_DATE
+      AND DATE(fecha_reserva) BETWEEN ${window.effectiveFrom}::date
+                                   AND ${window.effectiveTo}::date
+  `;
+
+  const maxCount = rows.reduce((max, r) => Math.max(max, clampCount(r.count)), 0);
+
+  return {
+    ok: true,
+    data: {
+      heatmap: rows.map((r) => ({
+        day:   Number(r.day),
+        hour:  Number(r.hour),
+        count: clampCount(r.count),
+      })),
+      total:    clampCount(totalRow?.total),
+      maxCount,
+      from: window.effectiveFrom,
+      to:   window.effectiveTo,
+    },
+  };
+}
+
+async function getNoShowFloorHeatmap({ zonaId, from, to }) {
+  // Validar zonaId
+  const zId = parseInt(String(zonaId ?? ''), 10);
+  if (!Number.isFinite(zId) || zId <= 0) {
+    return { ok: false, status: 422, message: 'zonaId debe ser un número válido' };
+  }
+
+  const window = resolveWindow(from, to);
+  if (!window.ok) return window;
+
+  const rows = await sql`
+    SELECT
+      r.id_espacio,
+      e.nombre_espacio,
+      COUNT(*)::int AS count
+    FROM "Reserva" r
+    JOIN "Espacio" e ON e.id_espacio = r.id_espacio
+    WHERE r.estado_reserva IN ('PENDIENTE', 'ACTIVO')
+      AND r.fecha_reserva < CURRENT_DATE
+      AND DATE(r.fecha_reserva) BETWEEN ${window.effectiveFrom}::date
+                                     AND ${window.effectiveTo}::date
+      AND e.id_zona = ${zId}
+      AND e.activo = TRUE
+    GROUP BY r.id_espacio, e.nombre_espacio
+    ORDER BY count DESC
+  `;
+
+  const maxCount = rows.reduce((max, r) => Math.max(max, clampCount(r.count)), 0);
+  const total    = rows.reduce((sum, r) => sum + clampCount(r.count), 0);
+
+  return {
+    ok: true,
+    data: {
+      noShowsBySpace: rows.map((r) => ({
+        id_espacio: Number(r.id_espacio),
+        nombre_espacio: String(r.nombre_espacio),
+        count:      clampCount(r.count),
+      })),
+      maxCount,
+      total,
+      from: window.effectiveFrom,
+      to:   window.effectiveTo,
+    },
+  };
+}
+
+async function getNoShowByUser({ from, to }) {
+  const window = resolveWindow(from, to);
+  if (!window.ok) return window;
+
+  const rows = await sql`
+    SELECT
+      u.id_usuario,
+      u.nombre,
+      u.apellido,
+      u.correo_institucional,
+      COUNT(*)::int AS count
+    FROM "Reserva" r
+    JOIN "Usuario" u ON u.id_usuario = r.id_usuario
+    WHERE r.estado_reserva IN ('PENDIENTE', 'ACTIVO')
+      AND r.fecha_reserva < CURRENT_DATE
+      AND DATE(r.fecha_reserva) BETWEEN ${window.effectiveFrom}::date
+                                     AND ${window.effectiveTo}::date
+    GROUP BY u.id_usuario, u.nombre, u.apellido, u.correo_institucional
+    ORDER BY count DESC
+  `;
+
+  return {
+    ok: true,
+    data: {
+      users:  rows.map((r) => ({
+        id_usuario:            Number(r.id_usuario),
+        nombre:                r.nombre,
+        apellido:              r.apellido,
+        correo_institucional:  r.correo_institucional,
+        count:                 clampCount(r.count),
+      })),
+      total: rows.reduce((sum, r) => sum + clampCount(r.count), 0),
+      from:  window.effectiveFrom,
+      to:    window.effectiveTo,
+    },
+  };
+}
+
+module.exports = { getAdminStats, getNoShowHeatmap, getNoShowFloorHeatmap, getNoShowByUser };
