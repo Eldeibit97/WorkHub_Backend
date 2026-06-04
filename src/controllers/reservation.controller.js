@@ -189,12 +189,14 @@ const createReserva = async (req, res) => {
   }
 };
 
-// ─── POST /reservas/verifica reserva activa ───────────────────────────────────────────────────
+// ─── GET /reservas/verifica reserva activa ───────────────────────────────────────────────────
 const tieneReserva = async (req, res) => {
+  const {id_usuario} = req.params;
+  const fecha = req.query.current_date;
+  const rango = req.query.range;
   try{
-    const data = req.body;
-    const pendiente = await reservationSvc.buscaReserva(data);
-    res.status(200).json({pendiente: pendiente});
+    const pendiente = await reservationSvc.buscaReserva(id_usuario, fecha, rango);
+    res.status(200).json({ok: true,pendiente: pendiente});
   }catch{
     console.error('Error al buscar si existe una reserva activa');
     res.status(400).json({error: 'Error al buscar si existe una reserva'});

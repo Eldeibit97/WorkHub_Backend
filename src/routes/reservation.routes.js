@@ -23,7 +23,7 @@ router.get('/usuarios', queries.getUsers);
 router.put('/reservas/check-in', queries.checkInReserva);
 router.put('/reservas/check-out', queries.checkOutReserva);
 
-router.post('/reservas/tieneReserva', queries.tieneReserva);
+router.get('/reservas/tieneReserva/:id_usuario', queries.tieneReserva);
 
 
 module.exports = router;

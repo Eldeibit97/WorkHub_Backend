@@ -466,9 +466,9 @@ async function createReservationsBatch(idUsuario, items) {
   }
 }
 
-const buscaReserva = async (datos) => {
+const buscaReserva = async (id_usuario, fecha, rango) => {
   try {
-    const hasActive = await sql`SELECT EXISTS (SELECT 1 FROM "Reserva" WHERE id_usuario = ${datos.user_id} AND "fecha_reserva" BETWEEN ${datos.today} AND ${datos.rango} AND estado_reserva IN ('ACTIVO', 'PENDIENTE'));`;
+    const hasActive = await sql`SELECT EXISTS (SELECT 1 FROM "Reserva" WHERE id_usuario = ${id_usuario} AND "fecha_reserva" BETWEEN ${fecha} AND ${rango} AND estado_reserva IN ('ACTIVO', 'PENDIENTE'));`;
     return hasActive[0].exists;
   } catch (error) {
     console.error('Ocurrio un error al buscar reservas pendientes o activas');
