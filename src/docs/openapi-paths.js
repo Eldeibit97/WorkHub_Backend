@@ -294,7 +294,9 @@
  *   get:
  *     tags: [Reservas]
  *     summary: Consultar disponibilidad de espacios
- *     description: Devuelve la disponibilidad de espacios para una fecha dada.
+ *     description: >
+ *       Devuelve la disponibilidad de espacios para una fecha y zona dadas.
+ *       Si se añaden horaInicio y horaFin se filtra por franja horaria.
  *     parameters:
  *       - in: query
  *         name: date
@@ -304,11 +306,32 @@
  *           format: date
  *           example: '2026-04-23'
  *         description: Fecha a consultar (YYYY-MM-DD)
+ *       - in: query
+ *         name: zona
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           example: 1
+ *         description: ID de la zona (también acepta zonaId)
+ *       - in: query
+ *         name: horaInicio
+ *         required: false
+ *         schema:
+ *           type: string
+ *           example: '08:00'
+ *         description: Hora de inicio de franja (HH:MM). Requiere horaFin.
+ *       - in: query
+ *         name: horaFin
+ *         required: false
+ *         schema:
+ *           type: string
+ *           example: '10:00'
+ *         description: Hora de fin de franja (HH:MM). Requiere horaInicio.
  *     responses:
  *       200:
  *         description: Datos de disponibilidad
  *       400:
- *         description: Parámetro date requerido
+ *         description: Faltan parámetros date/fecha y zona/zonaId
  *       500:
  *         description: Error al consultar disponibilidad
  *
