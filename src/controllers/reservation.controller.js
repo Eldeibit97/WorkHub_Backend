@@ -3,6 +3,7 @@
 const modeloReserva  = require('../models/modeloReserva.js');
 const reservationSvc = require('../services/reservation.service.js');
 const {
+  fetchAvailability,
   fetchAvailabilityWindow,
   createReservationsBatch,
 } = reservationSvc;
