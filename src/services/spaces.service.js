@@ -208,6 +208,19 @@ async function buildScheduleBlocks(idEspacio, fecha) {
   return { bloques };
 }
 
+async function fetchParkingSpaces() {
+  try{
+    const spaces = await sql`SELECT z.nombre_zona AS "zona", COUNT(e.estado_actual) AS "espaciosDisponibles",  COUNT(e.id_espacio) AS "espaciosTotales" FROM "Espacio" e JOIN "Zona" z ON e.id_zona = z.id_zona WHERE z.nombre_zona LIKE 'E%' AND e.estado_actual = 'DISPONIBLE' GROUP BY z.nombre_zona;`;
+    const zones = spaces.reduce((acc, {zona, espaciosDisponibles, espaciosTotales})=>{
+      acc[zona] = {espaciosDisponibles, espaciosTotales};
+      return acc;
+    },{});
+    return zones;
+  }catch(error){
+    throw new Error('No se pudo obtener los datos', error);
+  };
+}
+
 module.exports = {
   listZonas,
   listSpacesByZona,
@@ -216,4 +229,5 @@ module.exports = {
   buildScheduleBlocks,
   parseZonaId,
   ALLOWED_TIPO_ESPACIO_IDS,
+  fetchParkingSpaces
 };

@@ -110,10 +110,20 @@ async function getSpaceSchedule(req, res) {
   }
 }
 
+async function getParkingSpaces(req, res) {
+  try{
+    const spaces = await spacesService.fetchParkingSpaces();
+    return res.status(201).json(spaces);
+  }catch(error){
+    return res.status(500).json(error);
+  }
+}
+
 module.exports = {
   getTiposEspacio,
   getZonas,
   getSpaces,
   getSpacesAvailability,
   getSpaceSchedule,
+  getParkingSpaces
 };
