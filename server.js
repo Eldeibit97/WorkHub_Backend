@@ -11,9 +11,6 @@ const usersRoutes = require('./src/routes/users.routes');
 const preferencesRoutes = require('./src/routes/preferences.routes');
 const { swaggerSpec } = require('./src/config/swagger');
 const initializeWebSocket = require('./src/config/websocket');
-const dotenv = require('dotenv');
-
-dotenv.config();
 
 const dotenv = require('dotenv');
 dotenv.config();
