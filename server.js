@@ -9,6 +9,7 @@ const authRoutes = require('./src/routes/auth.routes');
 const adminRoutes = require('./src/routes/admin.routes');
 const usersRoutes = require('./src/routes/users.routes');
 const preferencesRoutes = require('./src/routes/preferences.routes');
+const purplePointsRoutes = require('./src/routes/purplePoints.routes');
 const { swaggerSpec } = require('./src/config/swagger');
 
 if (!process.env.JWT_SECRET || String(process.env.JWT_SECRET).trim() === '') {
@@ -78,6 +79,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/preferences', preferencesRoutes);
+app.use('/api/purple-points', purplePointsRoutes);
 app.use('/api', spacesRoutes);
 app.use('/api', reservationRoutes);
 

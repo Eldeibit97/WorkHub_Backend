@@ -21,6 +21,7 @@ const options = {
       { name: 'Reservas', description: 'Reservas de oficina' },
       { name: 'Preferencias', description: 'Historial y preferencias inferidas del usuario' },
       { name: 'Health', description: 'Estado del servicio' },
+      { name: 'PurplePoints', description: 'Mercado de personalización y saldo de Purple Points' },
     ],
     components: {
       securitySchemes: {

@@ -5,6 +5,7 @@ const { RESERVATION_STATUS } = require('../constants/reservationStatus');
 const { normalizeTimeLabel, intervalsOverlap, toMinutes } = require('../utils/timeRange');
 const spacesService = require('./spaces.service');
 const { sendConfirmationEmail } = require('./email.service');
+const ppService = require('./purplePoints.service');
 
 /** YYYY-MM-DD, primeros 10 de ISO, o Date local (sin horas raras en string arbitrario). */
 function normalizeFechaReserva(v) {
@@ -201,6 +202,9 @@ const performCheckOut = async (id_reserva) => {
     `;
 
     if (result && result.length > 0) {
+      ppService
+        .earnForCheckout(result[0])
+        .catch((e) => console.error('earnForCheckout', e));
       return { ok: true, status: 200, message: 'Check-out realizado correctamente', data: result[0] };
     }
 
@@ -267,8 +271,15 @@ const reservarEspacio = async (datosReserva) => {
     };
   }
   const datosCorrectos = { ...datosReserva, idUsuario: usuario.id_usuario };
-  const respuesta = await modeloReserva.crearReserva(datosCorrectos);
-  if (respuesta) {
+  const idReserva = await modeloReserva.crearReserva(datosCorrectos);
+  if (idReserva) {
+    ppService
+      .earnForReservationCreate(
+        usuario.id_usuario,
+        idReserva,
+        datosReserva.tipoReserva ?? 'INDIVIDUAL'
+      )
+      .catch((e) => console.error('earnForReservationCreate (legacy)', e));
     return {
       status: 200,
       message: 'La reserva se creo de manera correcta'
@@ -490,6 +501,13 @@ async function createReservationsBatch(idUsuario, items) {
       }
     } catch (emailErr) {
       console.error('Error al enviar correo de confirmación:', emailErr);
+    }
+
+    // Otorgar PP por cada reserva creada (idempotente, fallo no revierte reservas)
+    for (let i = 0; i < ids.length; i++) {
+      ppService
+        .earnForReservationCreate(uid, ids[i], normalized[i].tipoReserva)
+        .catch((e) => console.error('earnForReservationCreate', e));
     }
 
     return { ok: true, status: 201, ids };

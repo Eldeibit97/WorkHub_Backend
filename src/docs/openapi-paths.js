@@ -491,6 +491,206 @@
  *         description: Zona no encontrada
  *       409:
  *         description: Código duplicado o reservas bloquean baja
+ *
+ * /api/purple-points/balance:
+ *   get:
+ *     tags: [PurplePoints]
+ *     summary: Saldo, equipamiento activo e inventario del usuario
+ *     description: Devuelve en una sola llamada todo lo necesario para inicializar el contexto de Purple Points en el frontend.
+ *     security:
+ *       - bearerAuth: []
+ *       - sessionCookie: []
+ *     responses:
+ *       200:
+ *         description: Balance bundle
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 balance:
+ *                   type: integer
+ *                   example: 350
+ *                 equipped:
+ *                   type: object
+ *                   properties:
+ *                     temaId:   { type: string, nullable: true, example: dracula }
+ *                     avatarId: { type: string, nullable: true, example: null }
+ *                     bannerId: { type: string, nullable: true, example: null }
+ *                 inventory:
+ *                   type: array
+ *                   items: { type: string }
+ *                   example: [dracula]
+ *       401:
+ *         description: Sesión o token requerido
+ *
+ * /api/purple-points/transactions:
+ *   get:
+ *     tags: [PurplePoints]
+ *     summary: Historial paginado de transacciones
+ *     security:
+ *       - bearerAuth: []
+ *       - sessionCookie: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20 }
+ *         description: Máximo 100
+ *       - in: query
+ *         name: offset
+ *         schema: { type: integer, default: 0 }
+ *     responses:
+ *       200:
+ *         description: Lista de transacciones y total
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 transactions:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       idTransaccion: { type: integer }
+ *                       tipo:          { type: string, enum: [EARN_CREATE, EARN_CHECKOUT, PURCHASE, ADMIN_ADJUST] }
+ *                       monto:         { type: integer, description: Positivo = ganancia, negativo = gasto }
+ *                       descripcion:   { type: string, nullable: true }
+ *                       creadoEn:      { type: string, format: date-time }
+ *                 total:
+ *                   type: integer
+ *       401:
+ *         description: Sesión o token requerido
+ *
+ * /api/purple-points/purchase:
+ *   post:
+ *     tags: [PurplePoints]
+ *     summary: Compra un ítem del Mercado
+ *     security:
+ *       - bearerAuth: []
+ *       - sessionCookie: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [itemId]
+ *             properties:
+ *               itemId:
+ *                 type: string
+ *                 example: dracula
+ *     responses:
+ *       201:
+ *         description: Compra exitosa
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:         { type: boolean }
+ *                 newBalance: { type: integer }
+ *                 itemId:     { type: string }
+ *       400:
+ *         description: itemId inválido o faltante
+ *       401:
+ *         description: Sesión o token requerido
+ *       402:
+ *         description: Saldo insuficiente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:    { type: string, example: insufficient_balance }
+ *                 required: { type: integer }
+ *                 current:  { type: integer }
+ *       409:
+ *         description: El ítem ya está en el inventario del usuario
+ *
+ * /api/purple-points/equip:
+ *   post:
+ *     tags: [PurplePoints]
+ *     summary: Equipa o desequipa un ítem (tema, avatar o banner)
+ *     description: Enviar itemId null en la categoría correspondiente para desequipar.
+ *     security:
+ *       - bearerAuth: []
+ *       - sessionCookie: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [category]
+ *             properties:
+ *               itemId:
+ *                 type: string
+ *                 nullable: true
+ *                 example: dracula
+ *               category:
+ *                 type: string
+ *                 enum: [theme, avatar, banner]
+ *     responses:
+ *       200:
+ *         description: Ítem equipado (o desequipado)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok: { type: boolean }
+ *                 equipped:
+ *                   type: object
+ *                   properties:
+ *                     temaId:   { type: string, nullable: true }
+ *                     avatarId: { type: string, nullable: true }
+ *                     bannerId: { type: string, nullable: true }
+ *       400:
+ *         description: category faltante o itemId inválido
+ *       401:
+ *         description: Sesión o token requerido
+ *       403:
+ *         description: El ítem no está en el inventario del usuario
+ *
+ * /api/purple-points/admin/adjust:
+ *   post:
+ *     tags: [PurplePoints]
+ *     summary: Ajuste manual de saldo (solo admin)
+ *     security:
+ *       - bearerAuth: []
+ *       - sessionCookie: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [idUsuario, monto]
+ *             properties:
+ *               idUsuario:
+ *                 type: integer
+ *               monto:
+ *                 type: integer
+ *                 description: Positivo para crédito, negativo para débito
+ *               descripcion:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Saldo ajustado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:         { type: boolean }
+ *                 newBalance: { type: integer }
+ *       400:
+ *         description: Parámetros inválidos o saldo resultante negativo
+ *       401:
+ *         description: Sesión o token requerido
+ *       403:
+ *         description: Acceso denegado (se requiere rol admin)
  */
 
 module.exports = {};
