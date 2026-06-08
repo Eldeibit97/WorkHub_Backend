@@ -9,6 +9,7 @@ const authRoutes = require('./src/routes/auth.routes');
 const adminRoutes = require('./src/routes/admin.routes');
 const usersRoutes = require('./src/routes/users.routes');
 const preferencesRoutes = require('./src/routes/preferences.routes');
+const purplePointsRoutes = require('./src/routes/purplePoints.routes');
 const { swaggerSpec } = require('./src/config/swagger');
 const initializeWebSocket = require('./src/config/websocket');
 
@@ -97,7 +98,8 @@ app.get('/api/docs.json', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', usersRoutes);
-app.use('/api', preferencesRoutes);
+app.use('/api/preferences', preferencesRoutes);
+app.use('/api/purple-points', purplePointsRoutes);
 app.use('/api', spacesRoutes);
 app.use('/api', reservationRoutes);
 
