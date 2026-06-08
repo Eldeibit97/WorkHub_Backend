@@ -1,5 +1,3 @@
-require('dotenv').config();
-
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
@@ -15,6 +13,9 @@ const { swaggerSpec } = require('./src/config/swagger');
 const initializeWebSocket = require('./src/config/websocket');
 const dotenv = require('dotenv');
 
+dotenv.config();
+
+const dotenv = require('dotenv');
 dotenv.config();
 
 if (!process.env.JWT_SECRET || String(process.env.JWT_SECRET).trim() === '') {
@@ -99,7 +100,7 @@ app.get('/api/docs.json', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', usersRoutes);
-app.use('/api/preferences', preferencesRoutes);
+app.use('/api', preferencesRoutes);
 app.use('/api', spacesRoutes);
 app.use('/api', reservationRoutes);
 
