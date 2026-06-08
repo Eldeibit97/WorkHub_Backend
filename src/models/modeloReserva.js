@@ -34,7 +34,28 @@ class ModeloReserva {
               VALUES (${datosReserva.idUsuario}, ${datosReserva.idEspacio}, ${datosReserva.fechaReserva}, ${datosReserva.horaInicio}, ${datosReserva.horaSalida}, 'PENDIENTE', ${datosReserva.fechaCreacion}, ${datosReserva.tipoReserva})
               RETURNING id_reserva
             `;
-            return rows.length > 0 ? rows[0].id_reserva : null;
+            const idReserva = rows.length > 0 ? rows[0].id_reserva : null;
+
+            // Actualizar estado_actual del espacio a OCUPADO
+            await sql`
+                UPDATE "Espacio"
+                SET
+                    estado_actual = 'OCUPADO',
+                    fecha_edicion = NOW()
+                WHERE id_espacio = ${datosReserva.idEspacio}
+            `;
+
+            // Obtener id_zona del espacio para WebSocket
+            const zoneInfo = await sql`SELECT id_zona FROM "Espacio" WHERE id_espacio = ${datosReserva.idEspacio}`;
+            const id_zona = zoneInfo[0]?.id_zona;
+
+            return {
+                success: true,
+                idReserva,
+                idEspacio: datosReserva.idEspacio,
+                idZona: id_zona
+            };
+
         } catch (error) {
             console.log('No se realizo la reserva', error);
             return null;

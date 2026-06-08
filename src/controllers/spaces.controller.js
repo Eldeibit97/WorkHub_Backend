@@ -73,7 +73,26 @@ async function getSpacesAvailability(req, res) {
       horaInicio,
       horaFin
     );
-    return res.status(200).json(data);
+    
+    // Transformar formato considerando estado_actual
+    const formatted = {};
+    for (const item of data) {
+      // Si está bloqueado temporalmente, mostrar BLOQUEADO_TEMPORAL
+      if (item.estado_actual === 'BLOQUEADO_TEMPORAL') {
+        formatted[item.id_espacio] = 'BLOQUEADO_TEMPORAL';
+      }
+      // Si está ocupado (por reserva), mostrar OCUPADO
+      else if (item.ocupado || item.estado_actual === 'OCUPADO' || item.estado_actual === 'CHECKED_IN') {
+        formatted[item.id_espacio] = 'OCUPADO';
+      }
+      // Si no, disponible
+      else {
+        formatted[item.id_espacio] = 'DISPONIBLE';
+      }
+    }
+    
+    console.log(`[Availability] Zona ${zonaId} - ${fecha} ${horaInicio}-${horaFin}:`, formatted);
+    return res.status(200).json(formatted);
   } catch (error) {
     if (error.status === 400) {
       return res.status(400).json({ message: error.message });
