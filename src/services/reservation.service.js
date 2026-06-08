@@ -154,7 +154,21 @@ const performCheckIn = async (id_reserva) => {
     return { ok: false, status: 400, message: 'La reserva no está activa' };
   }
 
-  // 3. Validar ventana de tiempo (15 min antes – 30 min después de hora_inicio)
+  // 3. Validar que el espacio está OCUPADO (fue reservado)
+  try {
+    const spaceCheck = await sql`SELECT estado_actual FROM "Espacio" WHERE id_espacio = ${r.id_espacio}`;
+    if (!spaceCheck || spaceCheck.length === 0) {
+      return { ok: false, status: 404, message: 'Espacio no encontrado' };
+    }
+    if (spaceCheck[0].estado_actual !== 'OCUPADO' && spaceCheck[0].estado_actual !== 'BLOQUEADO_TEMPORAL') {
+      return { ok: false, status: 400, message: 'El espacio debe estar reservado para hacer check-in' };
+    }
+  } catch (error) {
+    console.error('DB ERROR verificando estado del espacio:', error);
+    throw error;
+  }
+
+  // 4. Validar ventana de tiempo (15 min antes – 30 min después de hora_inicio)
   const ahora        = new Date();
   const fechaReserva = new Date(r.fecha_reserva);
   const [hora, minutos, segundos] = r.hora_inicio.split(':');
@@ -169,7 +183,7 @@ const performCheckIn = async (id_reserva) => {
     return { ok: false, status: 400, message: 'Fuera de la ventana permitida para check-in' };
   }
 
-  // 4. Actualizar estado
+  // 5. Actualizar estado de Reserva y Espacio
   try {
     await sql`
       UPDATE "Reserva"
@@ -179,7 +193,27 @@ const performCheckIn = async (id_reserva) => {
         fecha_edicion  = NOW()
       WHERE id_reserva = ${id_reserva}
     `;
-    return { ok: true, status: 200, message: 'Check-in realizado correctamente' };
+    
+    // Actualizar Espacio a CHECKED_IN
+    await sql`
+      UPDATE "Espacio"
+      SET
+        estado_actual = 'CHECKED_IN',
+        fecha_edicion = NOW()
+      WHERE id_espacio = ${r.id_espacio}
+    `;
+    
+    // Obtener info de la zona para WebSocket
+    const zoneInfo = await sql`SELECT id_zona FROM "Espacio" WHERE id_espacio = ${r.id_espacio}`;
+    const id_zona = zoneInfo[0]?.id_zona;
+    
+    return { 
+      ok: true, 
+      status: 200, 
+      message: 'Check-in realizado correctamente',
+      id_espacio: r.id_espacio,
+      id_zona: id_zona
+    };
   } catch (error) {
     console.error('DB ERROR en performCheckIn:', error);
     throw error;
@@ -268,10 +302,13 @@ const reservarEspacio = async (datosReserva) => {
   }
   const datosCorrectos = { ...datosReserva, idUsuario: usuario.id_usuario };
   const respuesta = await modeloReserva.crearReserva(datosCorrectos);
-  if (respuesta) {
+  if (respuesta && respuesta.success) {
     return {
       status: 200,
-      message: 'La reserva se creo de manera correcta'
+      message: 'La reserva se creo de manera correcta',
+      idEspacio: respuesta.idEspacio,
+      idZona: respuesta.idZona,
+      id_zona: respuesta.idZona
     };
   }
   return {

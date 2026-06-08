@@ -30,8 +30,26 @@ class ModeloReserva {
     static async crearReserva(datosReserva) {
         try {
             const inserted = await sql`INSERT INTO "Reserva" (id_usuario, id_espacio, fecha_reserva, hora_inicio, hora_fin, estado_reserva, fecha_creacion, tipo_reserva)
-                  VALUES (${datosReserva.idUsuario}, ${datosReserva.idEspacio}, ${datosReserva.fechaReserva}, ${datosReserva.horaInicio}, ${datosReserva.horaSalida}, 'PENDIENTE', ${datosReserva.fechaCreacion}, ${datosReserva.tipoReserva})`;
-            return true;
+                VALUES (${datosReserva.idUsuario}, ${datosReserva.idEspacio}, ${datosReserva.fechaReserva}, ${datosReserva.horaInicio}, ${datosReserva.horaSalida}, 'PENDIENTE', ${datosReserva.fechaCreacion}, ${datosReserva.tipoReserva})`;
+            
+            // Actualizar estado_actual del espacio a OCUPADO
+            await sql`
+                UPDATE "Espacio"
+                SET
+                    estado_actual = 'OCUPADO',
+                    fecha_edicion = NOW()
+                WHERE id_espacio = ${datosReserva.idEspacio}
+            `;
+            
+            // Obtener id_zona del espacio para WebSocket
+            const zoneInfo = await sql`SELECT id_zona FROM "Espacio" WHERE id_espacio = ${datosReserva.idEspacio}`;
+            const id_zona = zoneInfo[0]?.id_zona;
+            
+            return {
+                success: true,
+                idEspacio: datosReserva.idEspacio,
+                idZona: id_zona
+            };
         } catch (error) {
             console.log('No se realizo la reserva', error);
             return false;
