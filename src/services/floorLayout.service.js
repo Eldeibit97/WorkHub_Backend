@@ -290,14 +290,12 @@ async function saveFloorLayout(zonaId, body) {
     }
   }
 
-  for (const id of eliminarIds) {
     stmts.push(sql`
-      UPDATE public."Espacio"
-         SET activo = false
-       WHERE id_espacio = ${id}
-         AND id_zona = ${zonaId}
-    `);
-  }
+    UPDATE public."Espacio"
+      SET activo = false
+    WHERE id_espacio = ANY(${eliminarIds})
+      AND id_zona = ${zonaId}
+  `);
 
   try {
     const txResults =
