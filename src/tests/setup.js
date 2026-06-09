@@ -1,0 +1,10 @@
+'use strict';
+process.env.JWT_SECRET      = 'test_jwt_secret_workhub_2026_very_long_value';
+process.env.SESSION_SECRET  = 'test_session_secret_different_from_jwt_2026';
+process.env.DATABASE_URL    = 'postgresql://test:test@localhost/test';
+process.env.SMTP_HOST       = 'smtp.test.com';
+process.env.SMTP_PORT       = '465';
+process.env.SMTP_USER       = 'test@test.com';
+process.env.SMTP_PASS       = 'testpass';
+process.env.SMTP_FROM       = 'test@test.com';
+process.env.NODE_ENV        = 'test';

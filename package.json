@@ -4,10 +4,14 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "set-user-password": "node scripts/set-user-password.js"
+    "set-user-password": "node scripts/set-user-password.js",
+    "test": "jest",
+    "test:unit": "jest src/tests/unit --coverage",
+    "test:integration": "jest src/tests/integration --coverage",
+    "test:e2e": "jest src/tests/e2e --coverage",
+    "test:coverage": "jest --coverage"
   },
   "keywords": [],
   "author": "",
