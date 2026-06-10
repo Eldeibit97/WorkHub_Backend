@@ -161,7 +161,7 @@ const performCheckIn = async (id_reserva) => {
     if (!spaceCheck || spaceCheck.length === 0) {
       return { ok: false, status: 404, message: 'Espacio no encontrado' };
     }
-    if (spaceCheck[0].estado_actual !== 'RESERVADO' && spaceCheck[0].estado_actual !== 'BLOQUEADO_TEMPORAL') {
+    if (spaceCheck[0].estado_actual !== 'RESERVADO' && spaceCheck[0].estado_actual !== 'OCUPADO') {
       return { ok: false, status: 400, message: 'El espacio debe estar reservado para hacer check-in' };
     }
   } catch (error) {
@@ -199,8 +199,7 @@ const performCheckIn = async (id_reserva) => {
     await sql`
       UPDATE "Espacio"
       SET
-        estado_actual = 'CHECKED_IN',
-        fecha_edicion = NOW()
+        estado_actual = 'CHECKED_IN'
       WHERE id_espacio = ${r.id_espacio}
     `;
     
@@ -222,43 +221,55 @@ const performCheckIn = async (id_reserva) => {
 };
 
 const performCheckOut = async (id_reserva) => {
+  // 1. Buscar reserva
+  const reserva = await modeloReserva.encontrarPorId(id_reserva);
+  if (!reserva || reserva.length === 0) {
+    return { ok: false, status: 404, message: 'Reserva no encontrada' };
+  }
+
+  const r = reserva[0];
+
+  // 2. Validar estado (solo se puede hacer check-out si está en CHECKED_IN)
+  if (r.estado_reserva === 'CHECKED_OUT') {
+    return { ok: false, status: 400, message: 'Ya se hizo check-out en esta reserva' };
+  }
+  if (r.estado_reserva !== 'CHECKED_IN') {
+    return { ok: false, status: 400, message: `No se puede hacer check-out desde el estado: ${r.estado_reserva}` };
+  }
+
+  // 3. Actualizar estado de Reserva y Espacio
   try {
-    // 1. Intentar UPDATE directo (solo si está en CHECKED_IN)
-    const result = await sql`
+    await sql`
       UPDATE "Reserva"
       SET
-        estado_reserva = ${RESERVATION_STATUS.COMPLETADO},
-        check_out      = CURRENT_TIMESTAMP,
-        fecha_edicion  = CURRENT_TIMESTAMP
-      WHERE id_reserva  = ${id_reserva}
-        AND estado_reserva = ${RESERVATION_STATUS.CHECKED_IN}
-      RETURNING *
+        estado_reserva = 'CHECKED_OUT',
+        check_out      = NOW(),
+        fecha_edicion  = NOW()
+      WHERE id_reserva = ${id_reserva}
     `;
 
-    if (result && result.length > 0) {
-      ppService
-        .earnForCheckout(result[0])
-        .catch((e) => console.error('earnForCheckout', e));
-      return { ok: true, status: 200, message: 'Check-out realizado correctamente', data: result[0] };
-    }
+    await sql`
+      UPDATE "Espacio"
+      SET estado_actual = 'DISPONIBLE'
+      WHERE id_espacio = ${r.id_espacio}
+    `;
 
-    // 2. El UPDATE no afectó filas: diagnosticar por qué
-    const reservaCheck = await modeloReserva.encontrarPorId(id_reserva);
-    if (!reservaCheck || reservaCheck.length === 0) {
-      return { ok: false, status: 404, message: 'Reserva no encontrada' };
-    }
+    // Obtener id_zona para WebSocket
+    const zoneInfo = await sql`SELECT id_zona FROM "Espacio" WHERE id_espacio = ${r.id_espacio}`;
+    const id_zona = zoneInfo[0]?.id_zona;
 
-    const estadoActual = reservaCheck[0].estado_reserva;
+    ppService
+      .earnForCheckout(r)
+      .catch((e) => console.error('earnForCheckout', e));
 
-    if (estadoActual === RESERVATION_STATUS.COMPLETADO) {
-      return { ok: false, status: 400, message: 'El check-out ya fue realizado previamente' };
-    }
-    if (estadoActual === RESERVATION_STATUS.ACTIVO) {
-      return { ok: false, status: 400, message: 'No puedes hacer check-out porque aún no has hecho check-in' };
-    }
-
-    return { ok: false, status: 400, message: `No se puede hacer check-out desde el estado: ${estadoActual}` };
-
+    return {
+      ok: true,
+      status: 200,
+      message: 'Check-out realizado correctamente',
+      id_espacio: r.id_espacio,
+      id_zona,
+      data: r,
+    };
   } catch (error) {
     console.error('DB ERROR en performCheckOut:', error);
     throw error;

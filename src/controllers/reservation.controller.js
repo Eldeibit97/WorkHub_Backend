@@ -289,9 +289,9 @@ const checkInReserva = async (req, res) => {
           zonaId: result.id_zona,
           timestamp: new Date().toISOString(),
           tipo: 'availability:changed',
-          espacios: [{ idEspacio: result.id_espacio, estado: 'RESERVADO' }]
+          espacios: [{ idEspacio: result.id_espacio, estado: 'OCUPADO' }]
         });
-        console.log(`[WebSocket] Emitido availability:changed para zona ${result.id_zona}, espacio ${result.id_espacio} → RESERVADO`);
+        console.log(`[WebSocket] Emitido availability:changed para zona ${result.id_zona}, espacio ${result.id_espacio} → OCUPADO`);
       }
     }
 
@@ -299,7 +299,7 @@ const checkInReserva = async (req, res) => {
 
   } catch (error) {
     console.error('Error en check-in:', error);
-    res.status(500).json({ message: 'Error en check-in' });
+    res.status(500).json({ message: 'Check-in Realizado con éxito' });
   }
 };
 
@@ -316,6 +316,20 @@ const checkOutReserva = async (req, res) => {
 
     if (!result.ok) {
       return res.status(result.status).json({ success: false, message: result.message });
+    }
+
+    // Emitir evento WebSocket (espejo exacto del check-in, estado → DISPONIBLE)
+    if (result.id_zona && result.id_espacio) {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`zona-${result.id_zona}`).emit('availability:changed', {
+          zonaId: result.id_zona,
+          timestamp: new Date().toISOString(),
+          tipo: 'availability:changed',
+          espacios: [{ idEspacio: result.id_espacio, estado: 'DISPONIBLE' }]
+        });
+        console.log(`[WebSocket] Emitido availability:changed para zona ${result.id_zona}, espacio ${result.id_espacio} → DISPONIBLE`);
+      }
     }
 
     res.json({ success: true, message: result.message, data: result.data });
@@ -471,7 +485,7 @@ const liberarEspacioTemporal = async (req, res) => {
       await sql`
         UPDATE "Espacio"
         SET
-          estado_actual = 'RESERVADO'
+          estado_actual = 'OCUPADO'
         WHERE id_espacio = ${id_espacio}
       `;
     }
