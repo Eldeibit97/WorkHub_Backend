@@ -19,14 +19,14 @@ router.post(
 router.put('/reservas/update', queries.updateReserva);
 router.get('/reservas/consulta', queries.getReservations);
 router.get('/reservas/disponibilidad', queries.checkAvailability);
+router.get('/reservas/detalles/:id_reserva', queries.getReservaDetails);
+router.get('/reservas/tieneReserva/:id_usuario', queries.tieneReserva);
 router.get('/reservas/:id_reserva', queries.getReservaByID);
 
 router.get('/usuarios', queries.getUsers);
 
 router.put('/reservas/check-in', queries.checkInReserva);
 router.put('/reservas/check-out', queries.checkOutReserva);
-
-router.get('/reservas/tieneReserva/:id_usuario', queries.tieneReserva);
 
 
 module.exports = router;
