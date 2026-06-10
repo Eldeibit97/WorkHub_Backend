@@ -138,6 +138,7 @@ async function fetchAvailabilityWindow(zonaId, fecha, horaInicio, horaFin) {
       e.id_espacio,
       e.codigo_espacio,
       e.nombre_espacio,
+      e.estado_actual,
       te.nombre_tipo AS tipo,
       z.nombre_zona,
       EXISTS (
@@ -164,6 +165,7 @@ async function fetchAvailabilityWindow(zonaId, fecha, horaInicio, horaFin) {
     tipo: r.tipo,
     nombre_zona: r.nombre_zona,
     ocupado: r.ocupado === true || r.ocupado === 't' || r.ocupado === 'true',
+    estado_actual: r.estado_actual,
   }));
 }
 

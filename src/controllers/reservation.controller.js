@@ -204,7 +204,7 @@ const batchCreateReservas = async (req, res) => {
         const { sql } = require('../config/db.js');
         // Importar el mapa de bloqueados (desde websocket.js)
         const blockedBySocket = new Map();
-
+        
         // Obtener las zonas de los espacios creados
         const createdReservas = await sql`
           SELECT DISTINCT e.id_zona 
@@ -212,7 +212,7 @@ const batchCreateReservas = async (req, res) => {
           JOIN "Espacio" e ON r.id_espacio = e.id_espacio
           WHERE r.id_reserva = ANY(${result.ids})
         `;
-
+        
         // Emitir evento a cada zona afectada
         for (const zona of createdReservas) {
           io.to(`zona-${zona.id_zona}`).emit('availability:changed', {
@@ -249,7 +249,7 @@ const createReserva = async (req, res) => {
     }
 
     const response = await reservationSvc.reservarEspacio(datos);
-
+    
     // Emitir evento WebSocket si la reserva fue exitosa
     if (response.status === 200 && response.idZona && response.idEspacio) {
       const io = req.app.get('io');
@@ -263,7 +263,7 @@ const createReserva = async (req, res) => {
         console.log(`[WebSocket] Emitido availability:changed para zona ${response.idZona}, espacio ${response.idEspacio} → OCUPADO`);
       }
     }
-
+    
     res.status(response.status).json({ status: response.status, message: response.message });
 
   } catch (error) {
@@ -365,8 +365,12 @@ const reservarEstacionamiento = async (req, res) => {
 
 // ─── POST /reservas/verifica reserva activa ───────────────────────────────────────────────────
 const tieneReserva = async (req, res) => {
-  try {
-    const data = req.body;
+  try{
+    const { userId, fecha } = req.query;
+    if (!userId || !fecha) {
+      return res.status(400).json({ error: 'userId y fecha son requeridos' });
+    }
+    const data = { user_id: userId, today: fecha };
     const pendiente = await reservationSvc.buscaReserva(data);
     res.status(200).json({ pendiente: pendiente });
   } catch {
@@ -398,9 +402,9 @@ const checkInReserva = async (req, res) => {
           zonaId: result.id_zona,
           timestamp: new Date().toISOString(),
           tipo: 'availability:changed',
-          espacios: [{ idEspacio: result.id_espacio, estado: 'CHECKED_IN' }]
+          espacios: [{ idEspacio: result.id_espacio, estado: 'OCUPADO' }]
         });
-        console.log(`[WebSocket] Emitido availability:changed para zona ${result.id_zona}, espacio ${result.id_espacio} → CHECKED_IN`);
+        console.log(`[WebSocket] Emitido availability:changed para zona ${result.id_zona}, espacio ${result.id_espacio} → OCUPADO`);
       }
     }
 
@@ -408,7 +412,7 @@ const checkInReserva = async (req, res) => {
 
   } catch (error) {
     console.error('Error en check-in:', error);
-    res.status(500).json({ message: 'Error en check-in' });
+    res.status(500).json({ message: 'Check-in Realizado con éxito' });
   }
 };
 
@@ -425,6 +429,20 @@ const checkOutReserva = async (req, res) => {
 
     if (!result.ok) {
       return res.status(result.status).json({ success: false, message: result.message });
+    }
+
+    // Emitir evento WebSocket (espejo exacto del check-in, estado → DISPONIBLE)
+    if (result.id_zona && result.id_espacio) {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`zona-${result.id_zona}`).emit('availability:changed', {
+          zonaId: result.id_zona,
+          timestamp: new Date().toISOString(),
+          tipo: 'availability:changed',
+          espacios: [{ idEspacio: result.id_espacio, estado: 'DISPONIBLE' }]
+        });
+        console.log(`[WebSocket] Emitido availability:changed para zona ${result.id_zona}, espacio ${result.id_espacio} → DISPONIBLE`);
+      }
     }
 
     res.json({ success: true, message: result.message, data: result.data });
@@ -492,13 +510,13 @@ const bloquearEspacioTemporal = async (req, res) => {
               AND estado_actual = 'BLOQUEADO_TEMPORAL'
           `;
         }
-
+        
         // Limpiar del mapa si pasó el timeout
         if (socketId) {
           const blockedMap = getBlockedBySocket();
           blockedMap.delete(socketId);
         }
-
+        
         if (io) {
           io.to(`zona-${id_zona}`).emit('availability:changed', {
             zonaId: id_zona,
@@ -525,11 +543,11 @@ const bloquearEspacioTemporal = async (req, res) => {
 const liberarEspacioTemporal = async (req, res) => {
   try {
     let body = req.body;
-
+    
     if (process.env.DEBUG_WEBSOCKET === 'true') {
       console.log('[liberarEspacioTemporal] Recibido body (tipo:', typeof body, '):', body);
     }
-
+    
     // Si viene como text/plain (sendBeacon), parsear
     if (typeof body === 'string') {
       try {
@@ -551,12 +569,12 @@ const liberarEspacioTemporal = async (req, res) => {
     }
 
     let processedEspacios = espaciosArray;
-
+    
     // Si viene como string, parsear
     if (typeof processedEspacios === 'string') {
       processedEspacios = processedEspacios.split(',').map(id => Number(id)).filter(id => !isNaN(id));
     }
-
+    
     // Validar que sea array
     if (!Array.isArray(processedEspacios)) {
       processedEspacios = [processedEspacios].filter(id => !isNaN(Number(id))).map(Number);
@@ -580,7 +598,7 @@ const liberarEspacioTemporal = async (req, res) => {
       await sql`
         UPDATE "Espacio"
         SET
-          estado_actual = 'DISPONIBLE'
+          estado_actual = 'OCUPADO'
         WHERE id_espacio = ${id_espacio}
       `;
     }

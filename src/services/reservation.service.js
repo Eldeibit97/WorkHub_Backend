@@ -4,6 +4,8 @@ const modeloReserva = require('../models/modeloReserva');
 const { RESERVATION_STATUS } = require('../constants/reservationStatus');
 const { normalizeTimeLabel, intervalsOverlap, toMinutes } = require('../utils/timeRange');
 const spacesService = require('./spaces.service');
+const { sendConfirmationEmail } = require('./email.service');
+const ppService = require('./purplePoints.service');
 
 /** YYYY-MM-DD, primeros 10 de ISO, o Date local (sin horas raras en string arbitrario). */
 function normalizeFechaReserva(v) {
@@ -149,12 +151,26 @@ const performCheckIn = async (id_reserva) => {
   if (r.estado_reserva === RESERVATION_STATUS.CHECKED_IN) {
     return { ok: false, status: 400, message: 'Ya se hizo check-in en esta reserva' };
   }
-  if (r.estado_reserva !== RESERVATION_STATUS.ACTIVO) {
+  if (r.estado_reserva !== RESERVATION_STATUS.PENDIENTE) {
     return { ok: false, status: 400, message: 'La reserva no está activa' };
   }
 
-  // 3. Validar ventana de tiempo (15 min antes – 30 min después de hora_inicio)
-  const ahora = new Date();
+  // 3. Validar que el espacio está OCUPADO (fue reservado)
+  try {
+    const spaceCheck = await sql`SELECT estado_actual FROM "Espacio" WHERE id_espacio = ${r.id_espacio}`;
+    if (!spaceCheck || spaceCheck.length === 0) {
+      return { ok: false, status: 404, message: 'Espacio no encontrado' };
+    }
+    if (spaceCheck[0].estado_actual !== 'RESERVADO' && spaceCheck[0].estado_actual !== 'OCUPADO') {
+      return { ok: false, status: 400, message: 'El espacio debe estar reservado para hacer check-in' };
+    }
+  } catch (error) {
+    console.error('DB ERROR verificando estado del espacio:', error);
+    throw error;
+  }
+
+  // 4. Validar ventana de tiempo (15 min antes – 30 min después de hora_inicio)
+  const ahora        = new Date();
   const fechaReserva = new Date(r.fecha_reserva);
   const [hora, minutos, segundos] = r.hora_inicio.split(':');
   fechaReserva.setHours(parseInt(hora), parseInt(minutos), parseInt(segundos || 0));
@@ -168,7 +184,7 @@ const performCheckIn = async (id_reserva) => {
     return { ok: false, status: 400, message: 'Fuera de la ventana permitida para check-in' };
   }
 
-  // 4. Actualizar estado
+  // 5. Actualizar estado de Reserva y Espacio
   try {
     await sql`
       UPDATE "Reserva"
@@ -178,7 +194,26 @@ const performCheckIn = async (id_reserva) => {
         fecha_edicion  = NOW()
       WHERE id_reserva = ${id_reserva}
     `;
-    return { ok: true, status: 200, message: 'Check-in realizado correctamente' };
+    
+    // Actualizar Espacio a CHECKED_IN
+    await sql`
+      UPDATE "Espacio"
+      SET
+        estado_actual = 'CHECKED_IN'
+      WHERE id_espacio = ${r.id_espacio}
+    `;
+    
+    // Obtener info de la zona para WebSocket
+    const zoneInfo = await sql`SELECT id_zona FROM "Espacio" WHERE id_espacio = ${r.id_espacio}`;
+    const id_zona = zoneInfo[0]?.id_zona;
+    
+    return { 
+      ok: true, 
+      status: 200, 
+      message: 'Check-in realizado correctamente',
+      id_espacio: r.id_espacio,
+      id_zona: id_zona
+    };
   } catch (error) {
     console.error('DB ERROR en performCheckIn:', error);
     throw error;
@@ -186,40 +221,55 @@ const performCheckIn = async (id_reserva) => {
 };
 
 const performCheckOut = async (id_reserva) => {
+  // 1. Buscar reserva
+  const reserva = await modeloReserva.encontrarPorId(id_reserva);
+  if (!reserva || reserva.length === 0) {
+    return { ok: false, status: 404, message: 'Reserva no encontrada' };
+  }
+
+  const r = reserva[0];
+
+  // 2. Validar estado (solo se puede hacer check-out si está en CHECKED_IN)
+  if (r.estado_reserva === 'CHECKED_OUT') {
+    return { ok: false, status: 400, message: 'Ya se hizo check-out en esta reserva' };
+  }
+  if (r.estado_reserva !== 'CHECKED_IN') {
+    return { ok: false, status: 400, message: `No se puede hacer check-out desde el estado: ${r.estado_reserva}` };
+  }
+
+  // 3. Actualizar estado de Reserva y Espacio
   try {
-    // 1. Intentar UPDATE directo (solo si está en CHECKED_IN)
-    const result = await sql`
+    await sql`
       UPDATE "Reserva"
       SET
-        estado_reserva = ${RESERVATION_STATUS.COMPLETADO},
-        check_out      = CURRENT_TIMESTAMP,
-        fecha_edicion  = CURRENT_TIMESTAMP
-      WHERE id_reserva  = ${id_reserva}
-        AND estado_reserva = ${RESERVATION_STATUS.CHECKED_IN}
-      RETURNING *
+        estado_reserva = 'CHECKED_OUT',
+        check_out      = NOW(),
+        fecha_edicion  = NOW()
+      WHERE id_reserva = ${id_reserva}
     `;
 
-    if (result && result.length > 0) {
-      return { ok: true, status: 200, message: 'Check-out realizado correctamente', data: result[0] };
-    }
+    await sql`
+      UPDATE "Espacio"
+      SET estado_actual = 'DISPONIBLE'
+      WHERE id_espacio = ${r.id_espacio}
+    `;
 
-    // 2. El UPDATE no afectó filas: diagnosticar por qué
-    const reservaCheck = await modeloReserva.encontrarPorId(id_reserva);
-    if (!reservaCheck || reservaCheck.length === 0) {
-      return { ok: false, status: 404, message: 'Reserva no encontrada' };
-    }
+    // Obtener id_zona para WebSocket
+    const zoneInfo = await sql`SELECT id_zona FROM "Espacio" WHERE id_espacio = ${r.id_espacio}`;
+    const id_zona = zoneInfo[0]?.id_zona;
 
-    const estadoActual = reservaCheck[0].estado_reserva;
+    ppService
+      .earnForCheckout(r)
+      .catch((e) => console.error('earnForCheckout', e));
 
-    if (estadoActual === RESERVATION_STATUS.COMPLETADO) {
-      return { ok: false, status: 400, message: 'El check-out ya fue realizado previamente' };
-    }
-    if (estadoActual === RESERVATION_STATUS.ACTIVO) {
-      return { ok: false, status: 400, message: 'No puedes hacer check-out porque aún no has hecho check-in' };
-    }
-
-    return { ok: false, status: 400, message: `No se puede hacer check-out desde el estado: ${estadoActual}` };
-
+    return {
+      ok: true,
+      status: 200,
+      message: 'Check-out realizado correctamente',
+      id_espacio: r.id_espacio,
+      id_zona,
+      data: r,
+    };
   } catch (error) {
     console.error('DB ERROR en performCheckOut:', error);
     throw error;
@@ -255,6 +305,39 @@ const fetchAvailability = async (date, id_zona) => {
     console.error("Error checking availability in Service:", error);
     throw error;
   }
+};
+
+const reservarEspacio = async (datosReserva) => {
+  const usuario = await modeloUsuario.encontrarPorMail(datosReserva.mail);
+  if (usuario.id_usuario === -1) {
+    return {
+      status: 400,
+      message: 'El correo con el que se intenta reservar no esta registrado en la plataforma'
+    };
+  }
+  const datosCorrectos = { ...datosReserva, idUsuario: usuario.id_usuario };
+    const respuesta = await modeloReserva.crearReserva(datosCorrectos);
+    if (respuesta && respuesta.success) {
+      ppService
+        .earnForReservationCreate(
+          usuario.id_usuario,
+          respuesta.idReserva,
+          datosReserva.tipoReserva ?? 'INDIVIDUAL'
+        )
+        .catch((e) => console.error('earnForReservationCreate (legacy)', e));
+
+    return {
+      status: 200,
+      message: 'La reserva se creo de manera correcta',
+      idEspacio: respuesta.idEspacio,
+      idZona: respuesta.idZona,
+      id_zona: respuesta.idZona
+    };
+  }
+  return {
+    status: 400,
+    message: 'Hubo un error al crear la reserva'
+  };
 };
 
 async function hasConflictingReservation(idEspacio, fecha, horaInicio, horaFin) {
@@ -437,6 +520,45 @@ async function createReservationsBatch(idUsuario, items) {
     if (ids.length !== normalized.length) {
       return { ok: false, status: 500, message: 'No se pudieron obtener todos los id de reserva' };
     }
+
+    // Send confirmation emails (fire-and-forget, failures don't break the response)
+    try {
+      const usuario = await modeloUsuario.encontrarPorId(uid);
+      if (usuario) {
+        const espacioIds = [...new Set(normalized.map((x) => x.idEspacio))];
+        const espacios = await sql`
+          SELECT e.id_espacio, e.nombre_espacio, e.codigo_espacio, z.nombre_zona, z.edificio
+            FROM public."Espacio" e
+            JOIN public."Zona" z ON e.id_zona = z.id_zona
+           WHERE e.id_espacio = ANY(${espacioIds})
+        `;
+        const espacioMap = new Map(espacios.map((e) => [e.id_espacio, e]));
+        for (const it of normalized) {
+          const espacio = espacioMap.get(it.idEspacio) ?? {};
+          await sendConfirmationEmail({
+            guestEmail: usuario.correo_institucional,
+            guestName: `${usuario.nombre} ${usuario.apellido}`,
+            date: it.fechaReserva,
+            horaInicio: it.horaInicio,
+            horaFin: it.horaSalida,
+            nombreEspacio: espacio.nombre_espacio ?? '',
+            codigoEspacio: espacio.codigo_espacio ?? '',
+            nombreZona: espacio.nombre_zona ?? '',
+            edificio: espacio.edificio ?? '',
+          });
+        }
+      }
+    } catch (emailErr) {
+      console.error('Error al enviar correo de confirmación:', emailErr);
+    }
+
+    // Otorgar PP por cada reserva creada (idempotente, fallo no revierte reservas)
+    for (let i = 0; i < ids.length; i++) {
+      ppService
+        .earnForReservationCreate(uid, ids[i], normalized[i].tipoReserva)
+        .catch((e) => console.error('earnForReservationCreate', e));
+    }
+
     return { ok: true, status: 201, ids };
   } catch (error) {
     console.error('createReservationsBatch', error);
@@ -516,7 +638,7 @@ const reservarEspacio = async (uid, datosReserva) => {
 
 const buscaReserva = async (id_usuario, fecha, rango) => {
   try {
-    const hasActive = await sql`SELECT EXISTS (SELECT 1 FROM "Reserva" WHERE id_usuario = ${id_usuario} AND "fecha_reserva" BETWEEN ${fecha} AND ${rango} AND estado_reserva IN ('ACTIVO', 'PENDIENTE'));`;
+    const hasActive = await sql`SELECT EXISTS (SELECT 1 FROM "Reserva" WHERE id_usuario = ${datos.user_id} AND "fecha_reserva" = ${datos.today} AND estado_reserva IN ('ACTIVO', 'PENDIENTE'));`;
     return hasActive[0].exists;
   } catch (error) {
     console.error('Ocurrio un error al buscar reservas pendientes o activas');

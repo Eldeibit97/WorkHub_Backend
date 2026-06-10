@@ -9,10 +9,11 @@ const authRoutes = require('./src/routes/auth.routes');
 const adminRoutes = require('./src/routes/admin.routes');
 const usersRoutes = require('./src/routes/users.routes');
 const preferencesRoutes = require('./src/routes/preferences.routes');
+const purplePointsRoutes = require('./src/routes/purplePoints.routes');
 const { swaggerSpec } = require('./src/config/swagger');
 const initializeWebSocket = require('./src/config/websocket');
-const dotenv = require('dotenv');
 
+const dotenv = require('dotenv');
 dotenv.config();
 
 if (!process.env.JWT_SECRET || String(process.env.JWT_SECRET).trim() === '') {
@@ -85,6 +86,8 @@ app.use(
   })
 );
 app.use(express.json());
+app.use(express.text({ type: 'text/plain', limit: '1mb' })); // Para sendBeacon
+app.use(express.raw({ type: 'application/octet-stream', limit: '1mb' })); // Para binarios si los hay
 app.use(createSessionMiddleware());
 
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { customSiteTitle: 'WorkHub API' }));
@@ -96,6 +99,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/preferences', preferencesRoutes);
+app.use('/api/purple-points', purplePointsRoutes);
 app.use('/api', spacesRoutes);
 app.use('/api', reservationRoutes);
 
