@@ -1,8 +1,10 @@
 'use strict';
 
 const { sql } = require('../config/db.js');
-const modeloReserva  = require('../models/modeloReserva.js');
+const modeloReserva = require('../models/modeloReserva.js');
+const { withParkingLock } = require('../utils/parkingLock.js');
 const reservationSvc = require('../services/reservation.service.js');
+const ModeloReserva = require('../models/modeloReserva.js');
 const {
   fetchAvailability,
   fetchAvailabilityWindow,
@@ -114,7 +116,7 @@ const updateReserva = async (req, res) => {
 
   // Validación de campos requeridos
   if (!id_reserva || !id_usuario || !fecha_reserva ||
-      !hora_inicio || !hora_fin || !estado_reserva || !tipo_reserva) {
+    !hora_inicio || !hora_fin || !estado_reserva || !tipo_reserva) {
     return res.status(400).json({ error: 'Datos incompletos para actualizar la reserva' });
   }
 
@@ -190,7 +192,7 @@ const batchCreateReservas = async (req, res) => {
   try {
     const { reservas } = req.body || {};
     const result = await createReservationsBatch(req.user.sub, reservas);
-    
+
     if (!result.ok) {
       return res.status(result.status).json({ message: result.message });
     }
@@ -202,7 +204,7 @@ const batchCreateReservas = async (req, res) => {
         const { sql } = require('../config/db.js');
         // Importar el mapa de bloqueados (desde websocket.js)
         const blockedBySocket = new Map();
-        
+
         // Obtener las zonas de los espacios creados
         const createdReservas = await sql`
           SELECT DISTINCT e.id_zona 
@@ -210,7 +212,7 @@ const batchCreateReservas = async (req, res) => {
           JOIN "Espacio" e ON r.id_espacio = e.id_espacio
           WHERE r.id_reserva = ANY(${result.ids})
         `;
-        
+
         // Emitir evento a cada zona afectada
         for (const zona of createdReservas) {
           io.to(`zona-${zona.id_zona}`).emit('availability:changed', {
@@ -242,12 +244,12 @@ const createReserva = async (req, res) => {
     const datos = req.body || {};
 
     if (!datos.mail || !datos.fechaReserva || !datos.idEspacio ||
-        !datos.horaInicio || !datos.horaSalida || !datos.fechaCreacion) {
+      !datos.horaInicio || !datos.horaSalida || !datos.fechaCreacion) {
       return res.status(400).json({ message: 'Todos los campos deben ser llenados' });
     }
 
     const response = await reservationSvc.reservarEspacio(datos);
-    
+
     // Emitir evento WebSocket si la reserva fue exitosa
     if (response.status === 200 && response.idZona && response.idEspacio) {
       const io = req.app.get('io');
@@ -261,7 +263,7 @@ const createReserva = async (req, res) => {
         console.log(`[WebSocket] Emitido availability:changed para zona ${response.idZona}, espacio ${response.idEspacio} → OCUPADO`);
       }
     }
-    
+
     res.status(response.status).json({ status: response.status, message: response.message });
 
   } catch (error) {
@@ -273,7 +275,7 @@ const createReserva = async (req, res) => {
 const createReservaEstacionamiento = async (req, res) => {
   try {
     const datos = req.body || {};
-    if (!datos || Object.keys(datos).length === 0 ) throw new Error('No se envio datos de una reserva');
+    if (!datos || Object.keys(datos).length === 0) throw new Error('No se envio datos de una reserva');
     const uid = Number(req.user.sub);
 
     const result = await reservarEspacio(uid, datos);
@@ -300,15 +302,76 @@ const createReservaEstacionamiento = async (req, res) => {
   };
 };
 
+const getCapacidad = async (req, res) => {
+  const { fecha, horaInicio, horaFin } = req.query;
+  
+  if (!fecha || !horaInicio || !horaFin) {
+    return res.status(400).json({ error: 'Parámetros requeridos: fecha, horaInicio, horaFin' });
+  }
+  
+  try {
+    const zonas = await ModeloReserva.obtenerCapacidadPorZona({ fecha, horaInicio, horaFin });
+    res.json(zonas);
+  } catch (err) {
+    console.error('[parking/capacidad]', err);
+    res.status(500).json({ error: 'Error al obtener capacidad' });
+  }
+};
+
+const reservarEstacionamiento = async (req, res) => {
+  const datos = req.body || {};
+  if (!datos || Object.keys(datos).length === 0) throw new Error('No se envio datos de una reserva');
+  const uid = Number(req.user.sub);
+
+  try {
+    const resultado = await withParkingLock(async () => {
+      const espacio = await ModeloReserva.primerEspacioLibre({ fecha: datos.fechaReserva, horaInicio: datos.horaInicio, horaFin: datos.horaSalida })
+      if (!espacio) {
+        const err = new Error('SIN_ESPACIOS')
+        err.code = 'SIN_ESPACIOS'
+        throw err
+      }
+      datos['id_espacio'] = espacio.id_espacio;
+
+      const reserva = await ModeloReserva.crearReservaEstacionamiento(uid, datos);
+      return reserva;
+    })
+
+    // Emitir cambio via WebSocket usando el patrón de tu compañero
+    try {
+      const io = req.app.get('io')
+      const ocupacion = await ModeloReserva.ocupacionDeZona(
+        resultado.id_zona,
+        { fecha: resultado.fecha_reserva, horaInicio: resultado.hora_inicio, horaFin: resultado.hora_fin }
+      )
+      // Tu compañero usa el room "zona-{id}" — usamos el mismo patrón
+      io.to(`zona-${resultado.id_zona}`).emit('parking:occupancy-changed', {
+        id_zona: resultado.id_zona,
+        ...ocupacion,
+      })
+    } catch (wsErr) {
+      console.error('[parking/reservar] WebSocket emit falló:', wsErr)
+    }
+
+    res.status(201).json(resultado)
+  } catch (err) {
+    if (err.code === 'SIN_ESPACIOS') {
+      return res.status(409).json({ error: 'No hay espacios de estacionamiento disponibles' })
+    }
+    console.error('[parking/reservar]', err)
+    res.status(500).json({ error: 'Error al crear la reserva' })
+  }
+};
+
 // ─── POST /reservas/verifica reserva activa ───────────────────────────────────────────────────
 const tieneReserva = async (req, res) => {
-  try{
+  try {
     const data = req.body;
     const pendiente = await reservationSvc.buscaReserva(data);
-    res.status(200).json({pendiente: pendiente});
-  }catch{
+    res.status(200).json({ pendiente: pendiente });
+  } catch {
     console.error('Error al buscar si existe una reserva activa');
-    res.status(400).json({error: 'Error al buscar si existe una reserva'});
+    res.status(400).json({ error: 'Error al buscar si existe una reserva' });
   }
 }
 
@@ -429,13 +492,13 @@ const bloquearEspacioTemporal = async (req, res) => {
               AND estado_actual = 'BLOQUEADO_TEMPORAL'
           `;
         }
-        
+
         // Limpiar del mapa si pasó el timeout
         if (socketId) {
           const blockedMap = getBlockedBySocket();
           blockedMap.delete(socketId);
         }
-        
+
         if (io) {
           io.to(`zona-${id_zona}`).emit('availability:changed', {
             zonaId: id_zona,
@@ -462,11 +525,11 @@ const bloquearEspacioTemporal = async (req, res) => {
 const liberarEspacioTemporal = async (req, res) => {
   try {
     let body = req.body;
-    
+
     if (process.env.DEBUG_WEBSOCKET === 'true') {
       console.log('[liberarEspacioTemporal] Recibido body (tipo:', typeof body, '):', body);
     }
-    
+
     // Si viene como text/plain (sendBeacon), parsear
     if (typeof body === 'string') {
       try {
@@ -488,12 +551,12 @@ const liberarEspacioTemporal = async (req, res) => {
     }
 
     let processedEspacios = espaciosArray;
-    
+
     // Si viene como string, parsear
     if (typeof processedEspacios === 'string') {
       processedEspacios = processedEspacios.split(',').map(id => Number(id)).filter(id => !isNaN(id));
     }
-    
+
     // Validar que sea array
     if (!Array.isArray(processedEspacios)) {
       processedEspacios = [processedEspacios].filter(id => !isNaN(Number(id))).map(Number);
@@ -557,5 +620,7 @@ module.exports = {
   liberarEspacioTemporal,
   tieneReserva,
   getReservaDetails,
-  createReservaEstacionamiento
+  createReservaEstacionamiento,
+  getCapacidad, 
+  reservarEstacionamiento
 };

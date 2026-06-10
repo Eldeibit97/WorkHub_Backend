@@ -43,8 +43,8 @@ class ModeloReserva {
     static async crearReservaEstacionamiento(uid, datosReserva) {
         try {
             const inserted = await sql`INSERT INTO "Reserva" (id_usuario, id_espacio, fecha_reserva, hora_inicio, hora_fin, estado_reserva, fecha_creacion, tipo_reserva)
-                  VALUES (${uid}, ${datosReserva.idEspacio}, ${datosReserva.fechaReserva}, ${datosReserva.horaInicio}, ${datosReserva.horaSalida}, 'PENDIENTE', ${datosReserva.fechaCreacion}, ${datosReserva.tipoReserva})`;
-            const data = await sql`SELECT r.id_reserva, u.correo_institucional, e.codigo_espacio, z.descripcion, r.fecha_reserva, r.hora_inicio, r.hora_fin FROM "Reserva" r JOIN "Usuario" u ON r.id_usuario = u.id_usuario JOIN "Espacio" e ON r.id_espacio = e.id_espacio JOIN "Zona" z ON e.id_zona = z.id_zona WHERE r.estado_reserva = 'PENDIENTE' AND u.id_usuario = ${uid} AND r.fecha_reserva = ${datosReserva.fechaReserva} LIMIT 1;`;
+                  VALUES (${uid}, ${datosReserva.id_espacio}, ${datosReserva.fechaReserva}, ${datosReserva.horaInicio}, ${datosReserva.horaSalida}, 'PENDIENTE', ${datosReserva.fechaCreacion}, ${datosReserva.tipoReserva})`;
+            const data = await sql`SELECT r.id_reserva, u.correo_institucional, e.codigo_espacio, z.descripcion, r.fecha_reserva, r.hora_inicio, r.hora_fin FROM "Reserva" r JOIN "Usuario" u ON r.id_usuario = u.id_usuario JOIN "Espacio" e ON r.id_espacio = e.id_espacio JOIN "Zona" z ON e.id_zona = z.id_zona WHERE r.estado_reserva = 'PENDIENTE' AND u.id_usuario = ${uid} AND r.id_espacio = ${datosReserva.id_espacio} AND r.fecha_reserva = ${datosReserva.fechaReserva} LIMIT 1;`;
             return data;
         } catch (error) {
             console.log('No se realizo la reserva', error);
@@ -64,24 +64,24 @@ class ModeloReserva {
     const rows = await sql`
       SELECT
         z.id_zona,
-        z.nombre         AS nombre_zona,
+        z.nombre_zona,
         z.codigo_zona,
         COUNT(e.id_espacio)::int                          AS total,
         COUNT(e.id_espacio) FILTER (
           WHERE EXISTS (
             SELECT 1 FROM "Reserva" r
              WHERE r.id_espacio = e.id_espacio
-               AND r.fecha      = ${fecha}
+               AND r.fecha_reserva      = ${fecha}
                AND r.hora_inicio < ${horaFin}
                AND r.hora_fin   > ${horaInicio}
           )
         )::int                                            AS ocupados
       FROM "Zona"    z
       JOIN "Espacio" e ON e.id_zona = z.id_zona
-      JOIN "Tipo_Espacio" te ON te.id_tipo = e.id_tipo
-      WHERE te.categoria = 'estacionamiento'
-      GROUP BY z.id_zona, z.nombre, z.codigo_zona
-      ORDER BY z.nombre
+      JOIN "Tipo_Espacio" te ON te.id_tipo_espacio = e.id_tipo_espacio
+      WHERE te.nombre_tipo = 'Estacionamiento'
+      GROUP BY z.id_zona, z.nombre_zona, z.codigo_zona
+      ORDER BY z.nombre_zona
     `
     return rows.map((r) => ({
       ...r,
@@ -105,41 +105,28 @@ class ModeloReserva {
     const rows = await sql`
       SELECT
         e.id_espacio,
-        e.codigo,
-        e.nombre,
+        e.codigo_espacio,
+        e.nombre_espacio,
         z.id_zona,
-        z.nombre  AS nombre_zona,
-        z.codigo_zona
+        z.codigo_zona,
+        e.estado_actual
       FROM "Espacio" e
-      JOIN "Zona"        z  ON z.id_zona  = e.id_zona
-      JOIN "Tipo_Espacio" te ON te.id_tipo = e.id_tipo
-      WHERE te.categoria = 'estacionamiento'
+      JOIN "Zona" z  ON z.id_zona  = e.id_zona
+      JOIN "Tipo_Espacio" te ON te.id_tipo_espacio = e.id_tipo_espacio
+      WHERE te.nombre_tipo = 'Estacionamiento'
         AND NOT EXISTS (
           SELECT 1 FROM "Reserva" r
            WHERE r.id_espacio   = e.id_espacio
-             AND r.fecha        = ${fecha}
-             AND r.hora_inicio  < ${horaFin}
-             AND r.hora_fin     > ${horaInicio}
+             AND r.fecha_reserva = ${fecha}
+             AND r.hora_inicio  < ${horaInicio}
+             AND r.hora_fin     > ${horaFin}
         )
       ORDER BY
-        z.id_zona ASC,   -- cambia este criterio si tienes zona gratuita vs pagada
-        e.id_espacio ASC
-      LIMIT 1
+        z.id_zona DESC,           
+        e.id_espacio DESC
+      LIMIT 1;
     `
     return rows[0] ?? null
-  };
- 
-  /**
-   * Crea la reserva para el espacio ya elegido.
-   * Se llama dentro del lock, justo después de primerEspacioLibre().
-   */
-  static async crearReserva({ id_espacio, id_usuario, fecha, horaInicio, horaFin }) {
-    const rows = await sql`
-      INSERT INTO "Reserva" (id_espacio, id_usuario, fecha, hora_inicio, hora_fin)
-      VALUES (${id_espacio}, ${id_usuario}, ${fecha}, ${horaInicio}, ${horaFin})
-      RETURNING *
-    `
-    return rows[0]
   };
  
   /**
@@ -154,15 +141,15 @@ class ModeloReserva {
           WHERE EXISTS (
             SELECT 1 FROM "Reserva" r
              WHERE r.id_espacio  = e.id_espacio
-               AND r.fecha       = ${fecha}
+               AND r.fecha_reserva       = ${fecha}
                AND r.hora_inicio < ${horaFin}
                AND r.hora_fin    > ${horaInicio}
           )
         )::int AS ocupados
       FROM "Espacio" e
-      JOIN "Tipo_Espacio" te ON te.id_tipo = e.id_tipo
+      JOIN "Tipo_Espacio" te ON te.id_tipo_espacio = e.id_tipo_espacio
       WHERE e.id_zona = ${id_zona}
-        AND te.categoria = 'estacionamiento'
+        AND te.nombre_tipo = 'Estacionamiento'
     `
     const { total, ocupados } = rows[0]
     return { total, ocupados, disponibles: total - ocupados }

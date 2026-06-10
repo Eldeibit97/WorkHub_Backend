@@ -22,7 +22,7 @@ let lockChain = Promise.resolve()
  * @param {() => Promise<T>} fn  Función async con la lógica crítica (buscar edificio + crear reserva)
  * @returns {Promise<T>}         Lo que retorne `fn`
  */
-export async function withParkingLock(fn) {
+async function withParkingLock(fn) {
   // Guardamos el estado actual de la cadena antes de extenderla
   const waitFor = lockChain
 
@@ -43,3 +43,5 @@ export async function withParkingLock(fn) {
     release()
   }
 }
+
+module.exports = {withParkingLock }

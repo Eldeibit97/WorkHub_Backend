@@ -6,7 +6,7 @@ const queries = require('../controllers/reservation.controller');
 router.post('/reservarEstacionamiento', 
   authenticate, 
   authorize('admin','employee'), 
-  queries.createReservaEstacionamiento);
+  queries.reservarEstacionamiento);
 router.get('/reservas', queries.getReservas);
 
 router.post(
@@ -22,6 +22,8 @@ router.get('/reservas/disponibilidad', queries.checkAvailability);
 router.get('/reservas/detalles/:id_reserva', queries.getReservaDetails);
 router.get('/reservas/tieneReserva/:id_usuario', queries.tieneReserva);
 router.get('/reservas/:id_reserva', queries.getReservaByID);
+
+router.get('/parking/capacidad', queries.getCapacidad);
 
 router.get('/usuarios', queries.getUsers);
 
