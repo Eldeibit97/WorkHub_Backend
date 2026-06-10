@@ -611,7 +611,7 @@ const reservarEspacio = async (uid, datosReserva) => {
   }
 };
 
-const buscaReserva = async (id_usuario, fecha, rango) => {
+const buscaReserva = async (datos) => {
   try {
     const hasActive = await sql`SELECT EXISTS (SELECT 1 FROM "Reserva" WHERE id_usuario = ${datos.user_id} AND "fecha_reserva" = ${datos.today} AND estado_reserva IN ('ACTIVO', 'PENDIENTE'));`;
     return hasActive[0].exists;
