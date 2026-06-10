@@ -307,39 +307,6 @@ const fetchAvailability = async (date, id_zona) => {
   }
 };
 
-const reservarEspacio = async (datosReserva) => {
-  const usuario = await modeloUsuario.encontrarPorMail(datosReserva.mail);
-  if (usuario.id_usuario === -1) {
-    return {
-      status: 400,
-      message: 'El correo con el que se intenta reservar no esta registrado en la plataforma'
-    };
-  }
-  const datosCorrectos = { ...datosReserva, idUsuario: usuario.id_usuario };
-    const respuesta = await modeloReserva.crearReserva(datosCorrectos);
-    if (respuesta && respuesta.success) {
-      ppService
-        .earnForReservationCreate(
-          usuario.id_usuario,
-          respuesta.idReserva,
-          datosReserva.tipoReserva ?? 'INDIVIDUAL'
-        )
-        .catch((e) => console.error('earnForReservationCreate (legacy)', e));
-
-    return {
-      status: 200,
-      message: 'La reserva se creo de manera correcta',
-      idEspacio: respuesta.idEspacio,
-      idZona: respuesta.idZona,
-      id_zona: respuesta.idZona
-    };
-  }
-  return {
-    status: 400,
-    message: 'Hubo un error al crear la reserva'
-  };
-};
-
 async function hasConflictingReservation(idEspacio, fecha, horaInicio, horaFin) {
   const hi = normalizeTimeLabel(horaInicio);
   const hf = normalizeTimeLabel(horaFin);
@@ -624,6 +591,14 @@ const reservarEspacio = async (uid, datosReserva) => {
       return { success: false, status: 400, message: 'La reserva no se creó apropiadamente' };
     }
 
+    ppService
+        .earnForReservationCreate(
+          usuario.id_usuario,
+          respuesta.idReserva,
+          datosReserva.tipoReserva ?? 'INDIVIDUAL'
+        )
+        .catch((e) => console.error('earnForReservationCreate (legacy)', e));
+    
     return {
       success: true,
       status: 201,
