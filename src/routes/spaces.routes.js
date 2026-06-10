@@ -8,5 +8,6 @@ router.get('/zonas', spacesController.getZonas);
 router.get('/spaces/availability', spacesController.getSpacesAvailability);
 router.get('/spaces/:idEspacio/schedule', spacesController.getSpaceSchedule);
 router.get('/spaces', spacesController.getSpaces);
+router.get('/parkingSpaces', spacesController.getParkingSpaces)
 
 module.exports = router;

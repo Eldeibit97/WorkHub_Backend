@@ -1,8 +1,10 @@
 'use strict';
 
 const { sql } = require('../config/db.js');
-const modeloReserva  = require('../models/modeloReserva.js');
+const modeloReserva = require('../models/modeloReserva.js');
+const { withParkingLock } = require('../utils/parkingLock.js');
 const reservationSvc = require('../services/reservation.service.js');
+const ModeloReserva = require('../models/modeloReserva.js');
 const {
   fetchAvailability,
   fetchAvailabilityWindow,
@@ -77,13 +79,33 @@ const getReservaByID = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Reserva no encontrada' });
     }
 
-    res.json(reserva);
-
+    return res.status(200).json(reserva);
   } catch (error) {
     console.error('Error fetching reserva by ID:', error);
-    res.status(500).json({ message: 'Error al obtener la reserva' });
+    return res.status(500).json({ message: 'Error al obtener la reserva' });
   }
 };
+
+const getReservaDetails = async (req, res) => {
+  try {
+    const { id_reserva } = req.params;
+
+    if (!id_reserva) {
+      return res.status(400).json({ error: 'ID de reserva no proporcionado' });
+    }
+
+    const reserva = await modeloReserva.detallesPorId(id_reserva);
+
+    if (!reserva || reserva.length === 0) {
+      return res.status(404).json({ success: false, message: 'Reserva no encontrada' });
+    }
+
+    return res.status(200).json(reserva[0]);
+  } catch (error) {
+    console.error('Error fetching reserva by ID:', error);
+    return res.status(500).json({ message: 'Error al obtener la reserva' });
+  }
+}
 
 // ─── PUT /reservas/update ─────────────────────────────────────────────────────
 const updateReserva = async (req, res) => {
@@ -94,7 +116,7 @@ const updateReserva = async (req, res) => {
 
   // Validación de campos requeridos
   if (!id_reserva || !id_usuario || !fecha_reserva ||
-      !hora_inicio || !hora_fin || !estado_reserva || !tipo_reserva) {
+    !hora_inicio || !hora_fin || !estado_reserva || !tipo_reserva) {
     return res.status(400).json({ error: 'Datos incompletos para actualizar la reserva' });
   }
 
@@ -170,7 +192,7 @@ const batchCreateReservas = async (req, res) => {
   try {
     const { reservas } = req.body || {};
     const result = await createReservationsBatch(req.user.sub, reservas);
-    
+
     if (!result.ok) {
       return res.status(result.status).json({ message: result.message });
     }
@@ -222,7 +244,7 @@ const createReserva = async (req, res) => {
     const datos = req.body || {};
 
     if (!datos.mail || !datos.fechaReserva || !datos.idEspacio ||
-        !datos.horaInicio || !datos.horaSalida || !datos.fechaCreacion) {
+      !datos.horaInicio || !datos.horaSalida || !datos.fechaCreacion) {
       return res.status(400).json({ message: 'Todos los campos deben ser llenados' });
     }
 
@@ -250,6 +272,97 @@ const createReserva = async (req, res) => {
   }
 };
 
+const createReservaEstacionamiento = async (req, res) => {
+  try {
+    const datos = req.body || {};
+    if (!datos || Object.keys(datos).length === 0) throw new Error('No se envio datos de una reserva');
+    const uid = Number(req.user.sub);
+
+    const result = await reservarEspacio(uid, datos);
+
+    if (!result || !result.success) {
+      return res.status(result?.status || 400).json({
+        success: false,
+        message: result?.message || 'No se pudo crear la reserva'
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: 'Reserva de estacionamiento creada exitosamente',
+      data: result.data
+    });
+  } catch (error) {
+    console.error('Error al crear reserva de estacionamiento:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al crear la reserva de estacionamiento',
+      error: error.message
+    });
+  };
+};
+
+const getCapacidad = async (req, res) => {
+  const { fecha, horaInicio, horaFin } = req.query;
+  
+  if (!fecha || !horaInicio || !horaFin) {
+    return res.status(400).json({ error: 'Parámetros requeridos: fecha, horaInicio, horaFin' });
+  }
+  
+  try {
+    const zonas = await ModeloReserva.obtenerCapacidadPorZona({ fecha, horaInicio, horaFin });
+    res.json(zonas);
+  } catch (err) {
+    console.error('[parking/capacidad]', err);
+    res.status(500).json({ error: 'Error al obtener capacidad' });
+  }
+};
+
+const reservarEstacionamiento = async (req, res) => {
+  const datos = req.body || {};
+  if (!datos || Object.keys(datos).length === 0) throw new Error('No se envio datos de una reserva');
+  const uid = Number(req.user.sub);
+
+  try {
+    const resultado = await withParkingLock(async () => {
+      const espacio = await ModeloReserva.primerEspacioLibre({ fecha: datos.fechaReserva, horaInicio: datos.horaInicio, horaFin: datos.horaSalida })
+      if (!espacio) {
+        const err = new Error('SIN_ESPACIOS')
+        err.code = 'SIN_ESPACIOS'
+        throw err
+      }
+      datos['id_espacio'] = espacio.id_espacio;
+
+      const reserva = await ModeloReserva.crearReservaEstacionamiento(uid, datos);
+      return reserva;
+    })
+
+    // Emitir cambio via WebSocket usando el patrón de tu compañero
+    try {
+      const io = req.app.get('io')
+      const ocupacion = await ModeloReserva.ocupacionDeZona(
+        resultado.id_zona,
+        { fecha: resultado.fecha_reserva, horaInicio: resultado.hora_inicio, horaFin: resultado.hora_fin }
+      )
+      // Tu compañero usa el room "zona-{id}" — usamos el mismo patrón
+      io.to(`zona-${resultado.id_zona}`).emit('parking:occupancy-changed', {
+        id_zona: resultado.id_zona,
+        ...ocupacion,
+      })
+    } catch (wsErr) {
+      console.error('[parking/reservar] WebSocket emit falló:', wsErr)
+    }
+
+    res.status(201).json(resultado)
+  } catch (err) {
+    if (err.code === 'SIN_ESPACIOS') {
+      return res.status(409).json({ error: 'No hay espacios de estacionamiento disponibles' })
+    }
+    console.error('[parking/reservar]', err)
+    res.status(500).json({ error: 'Error al crear la reserva' })
+  }
+};
+
 // ─── POST /reservas/verifica reserva activa ───────────────────────────────────────────────────
 const tieneReserva = async (req, res) => {
   try{
@@ -259,10 +372,10 @@ const tieneReserva = async (req, res) => {
     }
     const data = { user_id: userId, today: fecha };
     const pendiente = await reservationSvc.buscaReserva(data);
-    res.status(200).json({pendiente: pendiente});
-  }catch{
+    res.status(200).json({ pendiente: pendiente });
+  } catch {
     console.error('Error al buscar si existe una reserva activa');
-    res.status(400).json({error: 'Error al buscar si existe una reserva'});
+    res.status(400).json({ error: 'Error al buscar si existe una reserva' });
   }
 }
 
@@ -523,5 +636,9 @@ module.exports = {
   batchCreateReservas,
   bloquearEspacioTemporal,
   liberarEspacioTemporal,
-  tieneReserva, 
+  tieneReserva,
+  getReservaDetails,
+  createReservaEstacionamiento,
+  getCapacidad, 
+  reservarEstacionamiento
 };
