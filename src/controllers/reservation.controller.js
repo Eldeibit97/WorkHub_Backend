@@ -372,10 +372,10 @@ const tieneReserva = async (req, res) => {
     }
     const data = { user_id: userId, today: fecha };
     const pendiente = await reservationSvc.buscaReserva(data);
-    res.status(200).json({ pendiente: pendiente });
-  } catch {
+    res.status(200).json({pendiente: pendiente});
+  }catch{
     console.error('Error al buscar si existe una reserva activa');
-    res.status(400).json({ error: 'Error al buscar si existe una reserva' });
+    res.status(400).json({error: 'Error al buscar si existe una reserva'});
   }
 }
 
