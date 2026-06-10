@@ -16,6 +16,7 @@ router.post(
 router.put('/reservas/update', queries.updateReserva);
 router.get('/reservas/consulta', queries.getReservations);
 router.get('/reservas/disponibilidad', queries.checkAvailability);
+router.get('/reservas/tiene-reserva', queries.tieneReserva);
 router.get('/reservas/:id_reserva', queries.getReservaByID);
 
 router.get('/usuarios', queries.getUsers);
@@ -24,6 +25,5 @@ router.put('/reservas/check-in', queries.checkInReserva);
 router.put('/reservas/check-out', queries.checkOutReserva);
 router.post('/reservas/bloquear-temporal', queries.bloquearEspacioTemporal);
 router.post('/reservas/liberar-temporal', queries.liberarEspacioTemporal);
-router.get('/reservas/tiene-reserva', queries.tieneReserva);
 
 module.exports = router;

@@ -1316,14 +1316,20 @@
  *   get:
  *     tags: [Reservas]
  *     summary: Verificar si el usuario tiene una reserva activa
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               userId: { type: integer }
- *               fecha: { type: string, format: date }
+ *     parameters:
+ *       - in: query
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del usuario
+ *       - in: query
+ *         name: fecha
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha a verificar (YYYY-MM-DD)
  *     responses:
  *       200:
  *         description: Resultado de la búsqueda
@@ -1334,7 +1340,7 @@
  *               properties:
  *                 pendiente: { type: boolean }
  *       400:
- *         description: Error al buscar reserva
+ *         description: Error al buscar reserva o parámetros faltantes
  *
  * /api/users:
  *   get:

@@ -253,7 +253,11 @@ const createReserva = async (req, res) => {
 // ─── POST /reservas/verifica reserva activa ───────────────────────────────────────────────────
 const tieneReserva = async (req, res) => {
   try{
-    const data = req.body;
+    const { userId, fecha } = req.query;
+    if (!userId || !fecha) {
+      return res.status(400).json({ error: 'userId y fecha son requeridos' });
+    }
+    const data = { user_id: userId, today: fecha };
     const pendiente = await reservationSvc.buscaReserva(data);
     res.status(200).json({pendiente: pendiente});
   }catch{
