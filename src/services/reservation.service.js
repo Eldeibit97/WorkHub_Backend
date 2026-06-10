@@ -154,15 +154,15 @@ const performCheckIn = async (id_reserva) => {
   }
 
   // 3. Validar ventana de tiempo (15 min antes – 30 min después de hora_inicio)
-  const ahora        = new Date();
+  const ahora = new Date();
   const fechaReserva = new Date(r.fecha_reserva);
   const [hora, minutos, segundos] = r.hora_inicio.split(':');
   fechaReserva.setHours(parseInt(hora), parseInt(minutos), parseInt(segundos || 0));
 
-  const MINUTOS_ANTES  = 15 * 60 * 1000;
+  const MINUTOS_ANTES = 15 * 60 * 1000;
   const MINUTOS_DESPUES = 30 * 60 * 1000;
-  const inicioVentana  = new Date(fechaReserva.getTime() - MINUTOS_ANTES);
-  const finVentana     = new Date(fechaReserva.getTime() + MINUTOS_DESPUES);
+  const inicioVentana = new Date(fechaReserva.getTime() - MINUTOS_ANTES);
+  const finVentana = new Date(fechaReserva.getTime() + MINUTOS_DESPUES);
 
   if (ahora < inicioVentana || ahora > finVentana) {
     return { ok: false, status: 400, message: 'Fuera de la ventana permitida para check-in' };
@@ -255,28 +255,6 @@ const fetchAvailability = async (date, id_zona) => {
     console.error("Error checking availability in Service:", error);
     throw error;
   }
-};
-
-const reservarEspacio = async (datosReserva) => {
-  const usuario = await modeloUsuario.encontrarPorMail(datosReserva.mail);
-  if (usuario.id_usuario === -1) {
-    return {
-      status: 400,
-      message: 'El correo con el que se intenta reservar no esta registrado en la plataforma'
-    };
-  }
-  const datosCorrectos = { ...datosReserva, idUsuario: usuario.id_usuario };
-  const respuesta = await modeloReserva.crearReserva(datosCorrectos);
-  if (respuesta) {
-    return {
-      status: 200,
-      message: 'La reserva se creo de manera correcta'
-    };
-  }
-  return {
-    status: 400,
-    message: 'Hubo un error al crear la reserva'
-  };
 };
 
 async function hasConflictingReservation(idEspacio, fecha, horaInicio, horaFin) {
@@ -465,6 +443,76 @@ async function createReservationsBatch(idUsuario, items) {
     return { ok: false, status: 500, message: 'Error al guardar las reservas' };
   }
 }
+
+const reservarEspacio = async (uid, datosReserva) => {
+  try {
+    // Validar que el usuario sea válido
+    if (!isValidPgInt32(uid)) {
+      return { success: false, status: 401, message: 'Usuario no válido' };
+    }
+
+    // Normalizar y validar los datos
+    const idEspacio = parseInt(datosReserva.idEspacio ?? datosReserva.id_espacio, 10);
+    const fechaReserva = normalizeFechaReserva(datosReserva.fechaReserva ?? datosReserva.fecha_reserva);
+    const horaInicio = normalizeTimeLabel(datosReserva.horaInicio ?? datosReserva.hora_inicio);
+    const horaSalida = normalizeTimeLabel(datosReserva.horaSalida ?? datosReserva.hora_salida);
+    const tipoReserva = datosReserva.tipoReserva ?? datosReserva.tipo_reserva ?? 'ESTACIONAMIENTO';
+
+    // Validar formato de datos
+    if (!isValidPgInt32(idEspacio)) {
+      return { success: false, status: 400, message: 'idEspacio inválido' };
+    }
+    if (!fechaReserva || !/^\d{4}-\d{2}-\d{2}$/.test(fechaReserva)) {
+      return { success: false, status: 400, message: 'fechaReserva debe ser YYYY-MM-DD' };
+    }
+    if (!horaInicio || !horaSalida) {
+      return { success: false, status: 400, message: 'horaInicio y horaSalida son requeridas' };
+    }
+
+    const spaceExists = await sql`
+      SELECT id_espacio FROM public."Espacio"
+      WHERE id_espacio = ${idEspacio} AND activo = true
+      LIMIT 1
+    `;
+
+    if (!spaceExists.length) {
+      return { success: false, status: 404, message: `Espacio ${idEspacio} no existe o está inactivo` };
+    }
+
+    // Verificar conflictos de horario
+    const conflict = await hasConflictingReservation(idEspacio, fechaReserva, horaInicio, horaSalida);
+    if (conflict) {
+      return { success: false, status: 409, message: `Conflicto de horario en espacio ${idEspacio} el ${fechaReserva}` };
+    }
+
+    // Preparar datos para el modelo
+    const datosModelo = {
+      idEspacio,
+      fechaReserva,
+      horaInicio,
+      horaSalida,
+      tipoReserva,
+      fechaCreacion: new Date().toISOString().split('T')[0]
+    };
+
+    // Crear la reserva
+    const response = await modeloReserva.crearReservaEstacionamiento(uid, datosModelo);
+
+    if (!response || response.length === 0) {
+      return { success: false, status: 400, message: 'La reserva no se creó apropiadamente' };
+    }
+
+    return {
+      success: true,
+      status: 201,
+      message: 'Reserva de estacionamiento creada exitosamente',
+      data: response[0]
+    };
+  } catch (error) {
+    console.error('Error en reservarEspacio:', error);
+    return { success: false, status: 500, message: 'Error al crear la reserva de estacionamiento' };
+  }
+};
 
 const buscaReserva = async (id_usuario, fecha, rango) => {
   try {

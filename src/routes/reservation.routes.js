@@ -3,7 +3,10 @@ const router = express.Router();
 const { authenticate, authorize } = require('../middleware/authenticate');
 const queries = require('../controllers/reservation.controller');
 
-router.post('/reservando', queries.createReserva);
+router.post('/reservarEstacionamiento', 
+  authenticate, 
+  authorize('admin','employee'), 
+  queries.createReservaEstacionamiento);
 router.get('/reservas', queries.getReservas);
 
 router.post(

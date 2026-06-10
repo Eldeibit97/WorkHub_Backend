@@ -5,6 +5,7 @@ const reservationSvc = require('../services/reservation.service.js');
 const {
   fetchAvailabilityWindow,
   createReservationsBatch,
+  reservarEspacio
 } = reservationSvc;
 
 const getUsers = async (req, res) => {
@@ -169,24 +170,35 @@ const batchCreateReservas = async (req, res) => {
   }
 };
 
-// ─── POST /reservando ─────────────────────────────────────────────────────────
-const createReserva = async (req, res) => {
+// ─── POST /reservarEstacionamiento ─────────────────────────────────────────────────────────
+const createReservaEstacionamiento = async (req, res) => {
   try {
     const datos = req.body || {};
+    if (!datos || Object.keys(datos).length === 0 ) throw new Error('No se envio datos de una reserva');
+    const uid = Number(req.user.sub);
 
-    // CORRECCIÓN: se añaden `return` para detener la ejecución tras enviar respuesta
-    if (!datos.mail || !datos.fechaReserva || !datos.idEspacio ||
-        !datos.horaInicio || !datos.horaSalida || !datos.fechaCreacion) {
-      return res.status(400).json({ message: 'Todos los campos deben ser llenados' });
+    const result = await reservarEspacio(uid, datos);
+
+    if (!result || !result.success) {
+      return res.status(result?.status || 400).json({
+        success: false,
+        message: result?.message || 'No se pudo crear la reserva'
+      });
     }
 
-    const response = await reservationSvc.reservarEspacio(datos);
-    res.status(response.status).json({ status: response.status, message: response.message });
-
+    return res.status(201).json({
+      success: true,
+      message: 'Reserva de estacionamiento creada exitosamente',
+      data: result.data
+    });
   } catch (error) {
-    console.error('Error creando la reserva', error);
-    res.status(400).json({ status: 400, message: 'Error al crear la reserva' });
-  }
+    console.error('Error al crear reserva de estacionamiento:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al crear la reserva de estacionamiento',
+      error: error.message
+    });
+  };
 };
 
 // ─── GET /reservas/verifica reserva activa ───────────────────────────────────────────────────
@@ -256,7 +268,7 @@ module.exports = {
   getReservaByID,
   updateReserva,
   checkAvailability,
-  createReserva,
+  createReservaEstacionamiento,
   checkInReserva,
   checkOutReserva,
   batchCreateReservas,
