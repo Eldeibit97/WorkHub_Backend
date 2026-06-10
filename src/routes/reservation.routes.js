@@ -3,7 +3,10 @@ const router = express.Router();
 const { authenticate, authorize } = require('../middleware/authenticate');
 const queries = require('../controllers/reservation.controller');
 
-router.post('/reservando', queries.createReserva);
+router.post('/reservarEstacionamiento', 
+  authenticate, 
+  authorize('admin','employee'), 
+  queries.reservarEstacionamiento);
 router.get('/reservas', queries.getReservas);
 
 router.post(
@@ -16,14 +19,17 @@ router.post(
 router.put('/reservas/update', queries.updateReserva);
 router.get('/reservas/consulta', queries.getReservations);
 router.get('/reservas/disponibilidad', queries.checkAvailability);
+router.get('/reservas/detalles/:id_reserva', queries.getReservaDetails);
+router.get('/reservas/tiene-reserva', queries.tieneReserva);
 router.get('/reservas/:id_reserva', queries.getReservaByID);
+
+router.get('/parking/capacidad', queries.getCapacidad);
 
 router.get('/usuarios', queries.getUsers);
 
 router.put('/reservas/check-in', queries.checkInReserva);
 router.put('/reservas/check-out', queries.checkOutReserva);
-
-router.post('/reservas/tieneReserva', queries.tieneReserva);
-
+router.post('/reservas/bloquear-temporal', queries.bloquearEspacioTemporal);
+router.post('/reservas/liberar-temporal', queries.liberarEspacioTemporal);
 
 module.exports = router;

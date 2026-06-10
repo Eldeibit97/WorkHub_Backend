@@ -111,7 +111,7 @@ async function createUser(body) {
     return {
       ok: false,
       status: 400,
-      message: `password es requerida y debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres`,
+      message: `Contraseña es requerida y debe tener al menos ${MIN_PASSWORD_LENGTH} caracteres`,
     };
   }
 
