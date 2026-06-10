@@ -151,7 +151,7 @@ const performCheckIn = async (id_reserva) => {
   if (r.estado_reserva === RESERVATION_STATUS.CHECKED_IN) {
     return { ok: false, status: 400, message: 'Ya se hizo check-in en esta reserva' };
   }
-  if (r.estado_reserva !== RESERVATION_STATUS.ACTIVO) {
+  if (r.estado_reserva !== RESERVATION_STATUS.PENDIENTE) {
     return { ok: false, status: 400, message: 'La reserva no está activa' };
   }
 
@@ -161,7 +161,7 @@ const performCheckIn = async (id_reserva) => {
     if (!spaceCheck || spaceCheck.length === 0) {
       return { ok: false, status: 404, message: 'Espacio no encontrado' };
     }
-    if (spaceCheck[0].estado_actual !== 'OCUPADO' && spaceCheck[0].estado_actual !== 'BLOQUEADO_TEMPORAL') {
+    if (spaceCheck[0].estado_actual !== 'RESERVADO' && spaceCheck[0].estado_actual !== 'BLOQUEADO_TEMPORAL') {
       return { ok: false, status: 400, message: 'El espacio debe estar reservado para hacer check-in' };
     }
   } catch (error) {

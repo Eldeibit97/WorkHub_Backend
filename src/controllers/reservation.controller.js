@@ -289,9 +289,9 @@ const checkInReserva = async (req, res) => {
           zonaId: result.id_zona,
           timestamp: new Date().toISOString(),
           tipo: 'availability:changed',
-          espacios: [{ idEspacio: result.id_espacio, estado: 'CHECKED_IN' }]
+          espacios: [{ idEspacio: result.id_espacio, estado: 'RESERVADO' }]
         });
-        console.log(`[WebSocket] Emitido availability:changed para zona ${result.id_zona}, espacio ${result.id_espacio} → CHECKED_IN`);
+        console.log(`[WebSocket] Emitido availability:changed para zona ${result.id_zona}, espacio ${result.id_espacio} → RESERVADO`);
       }
     }
 
@@ -471,7 +471,7 @@ const liberarEspacioTemporal = async (req, res) => {
       await sql`
         UPDATE "Espacio"
         SET
-          estado_actual = 'DISPONIBLE'
+          estado_actual = 'RESERVADO'
         WHERE id_espacio = ${id_espacio}
       `;
     }
