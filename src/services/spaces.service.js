@@ -28,8 +28,9 @@ async function listZonas() {
       z.codigo_zona,
       z.view_box,
       z.background
-      FROM public."Zona" z
-     ORDER BY z.edificio NULLS LAST, z.nombre_zona
+  FROM public."Zona" z
+  WHERE z.edificio = 'ATC Monterrey'
+  ORDER BY z.edificio NULLS LAST, z.nombre_zona
   `;
   return rows.map((z) => ({
     idZona: z.id_zona,
