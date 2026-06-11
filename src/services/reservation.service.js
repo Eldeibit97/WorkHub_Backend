@@ -488,10 +488,13 @@ async function createReservationsBatch(idUsuario, items) {
       return { ok: false, status: 500, message: 'No se pudieron obtener todos los id de reserva' };
     }
 
-    // Send confirmation emails (fire-and-forget, failures don't break the response)
-    try {
-      const usuario = await modeloUsuario.encontrarPorId(uid);
-      if (usuario) {
+    // Send confirmation emails: fire-and-forget so a slow/unreachable SMTP
+    // server never blocks the HTTP response. The reservations are already
+    // committed above; emails are a best-effort side effect.
+    (async () => {
+      try {
+        const usuario = await modeloUsuario.encontrarPorId(uid);
+        if (!usuario) return;
         const espacioIds = [...new Set(normalized.map((x) => x.idEspacio))];
         const espacios = await sql`
           SELECT e.id_espacio, e.nombre_espacio, e.codigo_espacio, z.nombre_zona, z.edificio
@@ -514,10 +517,10 @@ async function createReservationsBatch(idUsuario, items) {
             edificio: espacio.edificio ?? '',
           });
         }
+      } catch (emailErr) {
+        console.error('Error al enviar correo de confirmación:', emailErr);
       }
-    } catch (emailErr) {
-      console.error('Error al enviar correo de confirmación:', emailErr);
-    }
+    })();
 
     // Otorgar PP por cada reserva creada (idempotente, fallo no revierte reservas)
     for (let i = 0; i < ids.length; i++) {

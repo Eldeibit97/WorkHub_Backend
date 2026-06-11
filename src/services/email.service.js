@@ -8,6 +8,11 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
+  // Bound every phase so a misconfigured/unreachable SMTP host fails fast
+  // instead of hanging the caller (nodemailer defaults are minutes long).
+  connectionTimeout: 10_000,
+  greetingTimeout: 10_000,
+  socketTimeout: 15_000,
 });
 
 async function sendConfirmationEmail(details) {
