@@ -17,7 +17,62 @@ API REST del sistema de reservas de espacios corporativos. Construida con **Node
 ---
 
 ## Arquitectura
+```
+Frontend / Postman / MCP Server
+      │
+      │  HTTP requests
+      ▼
+┌─────────────────────────────────────┐
+│  server.js  →  app.js               │   port 5500
+│  express() · cors · session ·       │
+│  rate-limit · socket.io             │
+└────────────────┬────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────┐
+│  src/routes/                         │
+│  auth.routes.js                      │
+│  reservations.routes.js              │
+│  users.routes.js                     │
+│  spaces.routes.js                    │
+│  suggestions.routes.js               │
+│  marketplace.routes.js               │
+└────────────────┬────────────────────┘
+                 │  middleware check
+                 ▼
+┌─────────────────────────────────────┐
+│  src/middleware/                     │
+│  auth.middleware.js  (JWT verify)    │
+│  role.middleware.js  (employee /     │
+│    admin / guard)                    │
+└────────────────┬────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────┐
+│  src/controllers/                    │
+│  authController · reservations ·    │
+│  users · spaces · marketplace       │
+└────────────────┬────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────┐
+│  src/services/                       │
+│  Business logic · email (nodemailer)│
+│  socket events · QR handling        │
+└────────────────┬────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────┐
+│  src/models/                         │
+│  SQL queries via                     │
+│  @neondatabase/serverless            │
+└────────────────┬────────────────────┘
+                 │  SQL over HTTPS
+                 ▼
+        Neon PostgreSQL (cloud)
+```
 
+## Estructura del proyecto
 ```
 src/
 ├── config/
